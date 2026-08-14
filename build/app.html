@@ -240,9 +240,21 @@
     }else if(pan){const s=svg.viewBox.baseVal.width/svg.clientWidth;
       pan.moved+=Math.abs(e.clientX-pan.sx)+Math.abs(e.clientY-pan.sy);
       tx=pan.tx+(e.clientX-pan.sx)*s;ty=pan.ty+(e.clientY-pan.sy)*s;clamp();apply();}});
-  function up(e){ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;
-    if(ptrs.size===0){svg.classList.remove("grabbing");}
-    if(ptrs.size===1){const p=[...ptrs.values()][0];pan={sx:p.x,sy:p.y,tx,ty,moved:99};}}
+  function up(e){
+    const wasSingle=ptrs.size===1, moved=pan?pan.moved:99, cx=e.clientX, cy=e.clientY;
+    ptrs.delete(e.pointerId); if(ptrs.size<2)pinch=null;
+    if(ptrs.size===0){svg.classList.remove("grabbing");
+      if(wasSingle&&moved<=6)handleTap(cx,cy);          // a tap, not a drag
+      pan=null;
+    }else if(ptrs.size===1){const p=[...ptrs.values()][0];pan={sx:p.x,sy:p.y,tx,ty,moved:99};}}
+  // pointer capture makes the SVG the click target, so hit-test the point ourselves
+  function handleTap(cx,cy){
+    const el=document.elementFromPoint(cx,cy); if(!el)return;
+    if(el.__s!=null){enterState(INDIA[el.__s].properties.slug);return;}
+    if(el.__i!=null){
+      if(locked===el){locked=null;el.classList.remove("sel");info.classList.remove("show");return;}
+      if(locked)locked.classList.remove("sel");
+      locked=el;el.classList.add("sel");cardVillage(el.__i);}}
   svg.addEventListener("pointerup",up);svg.addEventListener("pointercancel",up);
   $("zin").onclick=()=>zoomAt(PW/2,PH/2,1.4);
   $("zout").onclick=()=>zoomAt(PW/2,PH/2,1/1.4);
@@ -329,13 +341,9 @@
 
   // ---------- shared map interactions ----------
   scene.addEventListener("pointerover",e=>{if(e.target.__i==null)return;if(locked==null)cardVillage(e.target.__i);});
-  scene.addEventListener("click",e=>{const t=e.target;if(t.__i==null)return;if(pan&&pan.moved>6)return;
-    if(locked===t){locked=null;t.classList.remove("sel");info.classList.remove("show");return;}
-    if(locked)locked.classList.remove("sel");locked=t;t.classList.add("sel");cardVillage(t.__i);});
   ctx.addEventListener("pointerover",e=>{if(e.target.__s==null)return;
     if(mode==="overview")cardState(e.target.__s);});
-  ctx.addEventListener("click",e=>{const t=e.target;if(t.__s==null)return;if(pan&&pan.moved>6)return;
-    enterState(INDIA[t.__s].properties.slug);});
+  // taps (state drill-in, village select) are handled in up()/handleTap via hit-testing
 
   // ---------- village search / district filter ----------
   const villSearch=$("villSearch");
