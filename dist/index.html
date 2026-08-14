@@ -79,10 +79,10 @@
   svg#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab;background:var(--map-sea)}
   svg#map.grabbing{cursor:grabbing}
   #land{fill:var(--map-bg)}
-  path.vill{stroke:var(--boundary);stroke-width:.35;vector-effect:non-scaling-stroke;cursor:pointer}
-  path.vill:hover{stroke:var(--ink);stroke-width:1.4}
-  path.vill.sel{stroke:var(--accent);stroke-width:2}
-  path.vill.dim{opacity:.1}
+  path.dist{stroke:var(--boundary);stroke-width:.35;vector-effect:non-scaling-stroke;cursor:pointer}
+  path.dist.dim{opacity:.12}
+  path.vhi{fill:none;stroke:var(--ink);stroke-width:1.6;vector-effect:non-scaling-stroke;pointer-events:none}
+  path.vsel{fill:none;stroke:var(--accent);stroke-width:2.2;vector-effect:non-scaling-stroke;pointer-events:none}
   path.state{stroke:var(--panel);stroke-width:1.1;vector-effect:non-scaling-stroke;cursor:pointer;transition:opacity .12s}
   path.state:hover{stroke:var(--ink);stroke-width:1.6}
   path.state.hl{stroke:var(--ink);stroke-width:2.6;filter:brightness(1.12)}
@@ -195,10 +195,30 @@
 
   const svg=$("map"), world=$("world"), ctx=$("ctx"), scene=$("scene"), info=$("info"), statusEl=$("status");
   let INDIA=[], STATES=[];                 // overview outlines + manifest
-  let mode="overview", feats=[], nodes=[], distColors={}, activeDist=null, locked=null;
+  let mode="overview", feats=[], distColors={}, activeDist=null;
+  let selI=-1, hoverI=-1, hoverEl=null, selEl=null;          // village hover/select overlays
+  let gGN=1,gMinLon=0,gMinLat=0,gCellLon=1,gCellLat=1,gcells=[];   // spatial hit-test grid
   let PH=800,pMinX=0,pMinY=0,pScale=1, k=1,tx=0,ty=0;
   const px=x=>pad+(x-pMinX)*pScale, py=y=>PH-pad-(y-pMinY)*pScale;
   const distColor=n=>distColors[n]||"var(--c-others)";
+  // screen point -> village index (point-in-polygon over a grid bucket)
+  const invMercLat=my=>(2*Math.atan(Math.exp(my*Math.PI/180))-Math.PI/2)*180/Math.PI;
+  function screenLonLat(cx,cy){const p=svg.createSVGPoint();p.x=cx;p.y=cy;
+    const q=p.matrixTransform(world.getScreenCTM().inverse());
+    return [pMinX+(q.x-pad)/pScale, invMercLat(pMinY+(PH-pad-q.y)/pScale)];}
+  function inRing(x,y,r){let ins=false;
+    for(let i=0,j=r.length-1;i<r.length;j=i++){const xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];
+      if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins;}return ins;}
+  function inFeature(x,y,g){const ps=g.type==="Polygon"?[g.coordinates]:g.coordinates;
+    for(const poly of ps){if(inRing(x,y,poly[0])){let hole=false;
+      for(let h=1;h<poly.length;h++)if(inRing(x,y,poly[h])){hole=true;break;}
+      if(!hole)return true;}}return false;}
+  function hitTest(lon,lat){
+    const cx=Math.floor((lon-gMinLon)/gCellLon), cy=Math.floor((lat-gMinLat)/gCellLat);
+    if(cx<0||cy<0||cx>=gGN||cy>=gGN)return -1;
+    const cand=gcells[cy*gGN+cx]; if(!cand)return -1;
+    for(const i of cand)if(inFeature(lon,lat,feats[i].geometry))return i;
+    return -1;}
 
   function eachRing(g,f){const t=g.type,c=g.coordinates;
     if(t==="Polygon")c.forEach(f);else if(t==="MultiPolygon")c.forEach(p=>p.forEach(f));}
@@ -223,9 +243,9 @@
 
   const ptrs=new Map(); let pan=null, pinch=null;
   svg.addEventListener("pointerdown",e=>{ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    svg.setPointerCapture(e.pointerId);
     if(ptrs.size===1){pan={sx:e.clientX,sy:e.clientY,tx,ty,moved:0};svg.classList.add("grabbing");}
-    else if(ptrs.size===2){pan=null;pinch=null;}});
+    else if(ptrs.size===2){pan=null;pinch=null;}
+    try{svg.setPointerCapture(e.pointerId);}catch(_){}});
   svg.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId))return;
     ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
     const pts=[...ptrs.values()];
@@ -248,13 +268,16 @@
       pan=null;
     }else if(ptrs.size===1){const p=[...ptrs.values()][0];pan={sx:p.x,sy:p.y,tx,ty,moved:99};}}
   // pointer capture makes the SVG the click target, so hit-test the point ourselves
+  function selectVillage(i){
+    if(i===selI){selI=-1;selEl.setAttribute("d","");info.classList.remove("show");return;}
+    selI=i;selEl.setAttribute("d",pathFor(feats[i].geometry));cardVillage(i);}
   function handleTap(cx,cy){
-    const el=document.elementFromPoint(cx,cy); if(!el)return;
-    if(el.__s!=null){enterState(INDIA[el.__s].properties.slug);return;}
-    if(el.__i!=null){
-      if(locked===el){locked=null;el.classList.remove("sel");info.classList.remove("show");return;}
-      if(locked)locked.classList.remove("sel");
-      locked=el;el.classList.add("sel");cardVillage(el.__i);}}
+    if(mode==="overview"){const el=document.elementFromPoint(cx,cy);
+      if(el&&el.__s!=null)enterState(INDIA[el.__s].properties.slug);return;}
+    const [lon,lat]=screenLonLat(cx,cy); const i=hitTest(lon,lat);
+    if(i>=0){selectVillage(i);return;}
+    const el=document.elementFromPoint(cx,cy);            // tapped a neighbour's context outline
+    if(el&&el.__s!=null)enterState(INDIA[el.__s].properties.slug);}
   svg.addEventListener("pointerup",up);svg.addEventListener("pointercancel",up);
   $("zin").onclick=()=>zoomAt(PW/2,PH/2,1.4);
   $("zout").onclick=()=>zoomAt(PW/2,PH/2,1/1.4);
@@ -278,11 +301,11 @@
       <div class="go">Click to explore villages ›</div>`;
     info.classList.add("show");wireClose();}
   function wireClose(){info.querySelector(".close").onclick=()=>{info.classList.remove("show");
-    if(locked){locked.classList.remove("sel");locked=null;}};}
+    selI=-1;if(selEl)selEl.setAttribute("d","");};}
 
   // ---------- overview ----------
   function drawOverview(){
-    mode="overview";feats=[];nodes=[];scene.innerHTML="";activeDist=null;locked=null;
+    mode="overview";feats=[];scene.innerHTML="";activeDist=null;selI=-1;hoverI=-1;
     $("crumb").innerHTML="<b>All of India</b> · 27 states &amp; UTs";
     $("stateSec").style.display="none";info.classList.remove("show");
     location.hash="";
@@ -300,13 +323,13 @@
   async function enterState(slug){
     const meta=STATES.find(s=>s.slug===slug);if(!meta)return;
     statusEl.textContent="Loading "+meta.name+"…";statusEl.classList.add("show");
-    activeDist=null;$("villSearch").value="";locked=null;info.classList.remove("show");
+    activeDist=null;$("villSearch").value="";selI=-1;hoverI=-1;info.classList.remove("show");
     if(window.innerWidth<=860)$("app").classList.remove("nav-open");
     try{
       const r=await fetch("data/"+slug+".geojson");if(!r.ok)throw new Error(r.status);
       feats=(await r.json()).features;
     }catch(e){statusEl.textContent="Could not load "+meta.name;return;}
-    mode="state";location.hash=slug;
+    mode="state";location.hash=slug;selI=-1;hoverI=-1;
     fitTo(feats);
     // context: all state outlines (faint), clickable to switch
     const cf=document.createDocumentFragment();
@@ -314,16 +337,21 @@
       el.setAttribute("d",pathFor(f.geometry));el.dataset.slug=f.properties.slug;
       el.setAttribute("class","ctx"+(f.properties.slug===slug?" here":""));el.__s=s;cf.appendChild(el);});
     ctx.innerHTML="";ctx.appendChild(cf);
-    // villages coloured by district
-    const dcount={},tset=new Set();
-    feats.forEach(f=>{const p=f.properties;if(p.d)dcount[p.d]=(dcount[p.d]||0)+1;if(p.s)tset.add(p.s);});
+    // tally districts; build ONE merged path per district (each village stays a sub-path,
+    // so boundaries & colours look identical) — ~75 nodes instead of 100k+
+    const dcount={},tset=new Set(),dPath={};
+    feats.forEach(f=>{const p=f.properties;const d=p.d||"—";
+      dcount[d]=(dcount[d]||0)+1;if(p.s)tset.add(p.s);(dPath[d]||(dPath[d]=[])).push(pathFor(f.geometry));});
     const dists=Object.keys(dcount).sort();
     distColors={};dists.forEach((n,i)=>distColors[n]=PALETTE[i%PALETTE.length]);
-    const vf=document.createDocumentFragment();nodes=[];
-    feats.forEach((ft,i)=>{const el=document.createElementNS(NS,"path");
-      el.setAttribute("d",pathFor(ft.geometry));el.setAttribute("class","vill");
-      el.style.fill=distColor(ft.properties.d);el.__i=i;vf.appendChild(el);nodes.push(el);});
+    const vf=document.createDocumentFragment();
+    dists.forEach(n=>{const el=document.createElementNS(NS,"path");
+      el.setAttribute("d",dPath[n].join(""));el.setAttribute("class","dist");
+      el.dataset.d=n;el.style.fill=distColor(n);vf.appendChild(el);});
+    hoverEl=document.createElementNS(NS,"path");hoverEl.setAttribute("class","vhi");vf.appendChild(hoverEl);
+    selEl=document.createElementNS(NS,"path");selEl.setAttribute("class","vsel");vf.appendChild(selEl);
     scene.innerHTML="";scene.appendChild(vf);
+    buildGrid();
     k=1;tx=0;ty=0;apply();
     // sidebar district list
     $("crumb").innerHTML=`<b>${esc(meta.name)}</b> · ${nf(feats.length)} villages · ${dists.length} districts · ${tset.size} taluks`;
@@ -333,33 +361,54 @@
       el.innerHTML=`<span class="sw" style="background:${distColors[n]}"></span>
         <span class="nm">${esc(cap(n))}</span><span class="ct">${nf(dcount[n])}</span>`;
       el.onclick=()=>{activeDist=activeDist===n?null:n;
-        [...dl.children].forEach(c=>c.classList.toggle("selrow",c.dataset.d===activeDist));refilter();};
+        [...dl.children].forEach(c=>c.classList.toggle("selrow",c.dataset.d===activeDist));applyFilter();};
       dl.appendChild(el);});
     $("stateSec").style.display="flex";markActive(slug);
     statusEl.classList.remove("show");
   }
 
-  // ---------- shared map interactions ----------
-  scene.addEventListener("pointerover",e=>{if(e.target.__i==null)return;if(locked==null)cardVillage(e.target.__i);});
+  // ---------- spatial grid + hover hit-testing ----------
+  function buildGrid(){
+    let mnLon=1e9,mnLat=1e9,mxLon=-1e9,mxLat=-1e9;
+    const bb=feats.map(f=>{let a=1e9,b=1e9,c=-1e9,d=-1e9;
+      eachRing(f.geometry,r=>r.forEach(([lo,la])=>{if(lo<a)a=lo;if(lo>c)c=lo;if(la<b)b=la;if(la>d)d=la;}));
+      if(a<mnLon)mnLon=a;if(c>mxLon)mxLon=c;if(b<mnLat)mnLat=b;if(d>mxLat)mxLat=d;return [a,b,c,d];});
+    gGN=Math.max(30,Math.min(220,Math.round(Math.sqrt(feats.length))));
+    gMinLon=mnLon;gMinLat=mnLat;gCellLon=(mxLon-mnLon)/gGN||1;gCellLat=(mxLat-mnLat)/gGN||1;
+    gcells=new Array(gGN*gGN);
+    feats.forEach((f,i)=>{const [a,b,c,d]=bb[i];
+      const c0=Math.max(0,(a-gMinLon)/gCellLon|0),c1=Math.min(gGN-1,(c-gMinLon)/gCellLon|0);
+      const r0=Math.max(0,(b-gMinLat)/gCellLat|0),r1=Math.min(gGN-1,(d-gMinLat)/gCellLat|0);
+      for(let r=r0;r<=r1;r++)for(let cc=c0;cc<=c1;cc++){const kk=r*gGN+cc;(gcells[kk]||(gcells[kk]=[])).push(i);}});}
+  let hoverRAF=0,hoverXY=null;
+  svg.addEventListener("pointermove",e=>{if(pan||pinch||mode!=="state")return;
+    hoverXY=[e.clientX,e.clientY];if(!hoverRAF)hoverRAF=requestAnimationFrame(doHover);});
+  function doHover(){hoverRAF=0;if(!hoverXY)return;
+    const [lon,lat]=screenLonLat(hoverXY[0],hoverXY[1]),i=hitTest(lon,lat);
+    if(i===hoverI)return;hoverI=i;
+    if(i<0){hoverEl.setAttribute("d","");if(selI<0)info.classList.remove("show");}
+    else{hoverEl.setAttribute("d",pathFor(feats[i].geometry));if(selI<0)cardVillage(i);}}
   ctx.addEventListener("pointerover",e=>{if(e.target.__s==null)return;
     if(mode==="overview")cardState(e.target.__s);});
-  // taps (state drill-in, village select) are handled in up()/handleTap via hit-testing
 
   // ---------- village search / district filter ----------
   const villSearch=$("villSearch");
-  function refilter(){const q=villSearch.value.trim().toLowerCase();let first=-1;
-    feats.forEach((f,i)=>{const p=f.properties;
-      const vis=(!activeDist||p.d===activeDist)&&(!q||(p.n||"").toLowerCase().includes(q)
-        ||(p.s||"").toLowerCase().includes(q)||(p.d||"").toLowerCase().includes(q));
-      nodes[i].classList.toggle("dim",!vis);if(vis&&first<0)first=i;});
-    return first;}
-  let vt;villSearch.addEventListener("input",()=>{clearTimeout(vt);vt=setTimeout(refilter,120);});
-  villSearch.addEventListener("keydown",e=>{if(e.key!=="Enter")return;const fm=refilter();if(fm<0)return;
-    let a=1e9,b=1e9,c=-1e9,d=-1e9;eachRing(feats[fm].geometry,r=>r.forEach(([lo,la])=>{const[mx,my]=merc(lo,la);
-      const X=px(mx),Y=py(my);if(X<a)a=X;if(X>c)c=X;if(Y<b)b=Y;if(Y>d)d=Y;}));
+  function applyFilter(){scene.querySelectorAll("path.dist").forEach(p=>
+    p.classList.toggle("dim",activeDist&&p.dataset.d!==activeDist));}
+  function setSelect(i){selI=i;selEl.setAttribute("d",pathFor(feats[i].geometry));cardVillage(i);}
+  function findMatch(q){q=q.trim().toLowerCase();if(!q)return -1;
+    for(let i=0;i<feats.length;i++){const p=feats[i].properties;if(activeDist&&p.d!==activeDist)continue;
+      if((p.n||"").toLowerCase().includes(q)||(p.s||"").toLowerCase().includes(q))return i;}return -1;}
+  function zoomToFeature(i){let a=1e9,b=1e9,c=-1e9,d=-1e9;
+    eachRing(feats[i].geometry,r=>r.forEach(([lo,la])=>{const[mx,my]=merc(lo,la),X=px(mx),Y=py(my);
+      if(X<a)a=X;if(X>c)c=X;if(Y<b)b=Y;if(Y>d)d=Y;}));
     const bw=c-a||10,bh=d-b||10;k=Math.min(40,Math.max(3,.5*Math.min(PW/bw,PH/bh)));
-    tx=PW/2-(a+c)/2*k;ty=PH/2-(b+d)/2*k;clamp();apply();
-    if(locked)locked.classList.remove("sel");locked=nodes[fm];locked.classList.add("sel");cardVillage(fm);});
+    tx=PW/2-(a+c)/2*k;ty=PH/2-(b+d)/2*k;clamp();apply();}
+  let vt;villSearch.addEventListener("input",()=>{clearTimeout(vt);vt=setTimeout(()=>{
+    const fm=findMatch(villSearch.value);
+    if(fm<0){selI=-1;if(selEl)selEl.setAttribute("d","");info.classList.remove("show");}else setSelect(fm);},150);});
+  villSearch.addEventListener("keydown",e=>{if(e.key!=="Enter")return;
+    const fm=findMatch(villSearch.value);if(fm<0)return;zoomToFeature(fm);setSelect(fm);});
 
   // ---------- sidebar state list ----------
   function hoverState(slug,on){const p=ctx.querySelector('path[data-slug="'+slug+'"]');if(p)p.classList.toggle("hl",on);}
