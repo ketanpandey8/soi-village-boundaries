@@ -1,0 +1,8 @@
+# Raw Survey of India data — too big for GitHub (up to 274 MB per zip, ~931 MB total).
+# Restore anytime with: python3 data/download.py
+data/raw/
+build/goa_src/
+build/*.geojson
+
+# OS / editor cruft
+.DS_Store

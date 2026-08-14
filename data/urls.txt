@@ -1,0 +1,27 @@
+/documents/ANDAMAN_&_NICOBAR_ISLANDS.zip
+/documents/ANDHRA_PRADESH.zip
+/documents/BIHAR.zip
+/documents/CHANDIGARH.zip
+/documents/CHHATTISGARH.zip
+/documents/DELHI.zip
+/documents/Dadra Nagar Haveli & Daman Diu.zip
+/documents/GOA.zip
+/documents/GUJARAT.zip
+/documents/HARYANA.zip
+/documents/JHARKHAND.zip
+/documents/KARNATAKA.zip
+/documents/KERALA.zip
+/documents/LAKSHYADWEEP.zip
+/documents/MADHYA_PRADESH.zip
+/documents/MAHARASHTRA.zip
+/documents/ODISHA.zip
+/documents/PUNDUCHERRY.zip
+/documents/PUNJAB.zip
+/documents/RAJASTHAN.zip
+/documents/SIKKIM.zip
+/documents/TAMILNADU.zip
+/documents/TELANGANA.zip
+/documents/TRIPURA.zip
+/documents/UTTARAKHAND.zip
+/documents/UTTAR_PRADESH.zip
+/documents/WEST_BENGAL.zip
