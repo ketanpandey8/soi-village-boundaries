@@ -1,0 +1,3 @@
+# Keep the ~321 MB of GeoJSON out of the static-asset upload — it is served
+# from the R2 bucket by src/worker.js instead.
+data/
