@@ -2,7 +2,15 @@
 # Restore anytime with: python3 data/download.py
 data/raw/
 build/goa_src/
+build/tmp/
 build/*.geojson
+
+# Generated per-state GeoJSON + national outline (~321 MB). Rebuild with:
+#   python3 build/build_all.py && python3 build/make_india.py && python3 build/make_manifest.py
+dist/data/
+
+# Wrangler local state / cache
+.wrangler/
 
 # OS / editor cruft
 .DS_Store
