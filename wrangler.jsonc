@@ -1,0 +1,18 @@
+{
+  // Cloudflare Worker — static assets only (no server code needed).
+  // Deploy:  npx wrangler deploy
+  "name": "village-boundaries",
+  "compatibility_date": "2026-08-01",
+
+  // Serve everything in ./dist as static files (index.html at the root).
+  "assets": {
+    "directory": "./dist"
+  },
+
+  // Attach the custom subdomain. Because 4080studio.com is already on
+  // Cloudflare, this auto-creates the DNS record and SSL cert.
+  // Edit the pattern here if you want a different subdomain.
+  "routes": [
+    { "pattern": "indianvillage.4080studio.com", "custom_domain": true }
+  ]
+}
