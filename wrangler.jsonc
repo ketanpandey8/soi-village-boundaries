@@ -1,25 +1,28 @@
 {
-  // Cloudflare Worker — serves the app (static assets) and proxies /data/* to R2.
-  // Code deploys via `npx wrangler deploy` (or auto-deploy once Git-connected).
-  // Map data lives in the R2 bucket, uploaded with ./sync-r2.sh (not in git).
-  "name": "village-boundaries",
-  "compatibility_date": "2026-08-01",
-  "main": "src/worker.js",
-
-  // Static app files. dist/.assetsignore keeps the ~321 MB dist/data/ OUT of the
-  // asset upload — that data is served from R2 instead.
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS"
-  },
-
-  // The GeoJSON store. Create once: npx wrangler r2 bucket create soi-village-data
-  "r2_buckets": [
-    { "binding": "DATA", "bucket_name": "soi-village-data" }
-  ],
-
-  // Custom subdomain (4080studio.com is already on Cloudflare -> auto DNS + SSL).
-  "routes": [
-    { "pattern": "indianvillage.4080studio.com", "custom_domain": true }
-  ]
+	// Cloudflare Worker — serves the app (static assets) and proxies /data/* to R2.
+	// Code deploys via `npx wrangler deploy` (or auto-deploy once Git-connected).
+	// Map data lives in the R2 bucket, uploaded with ./sync-r2.sh (not in git).
+	"name": "village-boundaries",
+	"compatibility_date": "2026-08-01",
+	"main": "src/worker.js",
+	// Static app files. dist/.assetsignore keeps the ~321 MB dist/data/ OUT of the
+	// asset upload — that data is served from R2 instead.
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS"
+	},
+	// The GeoJSON store. Create once: npx wrangler r2 bucket create soi-village-data
+	"r2_buckets": [
+		{
+			"binding": "DATA",
+			"bucket_name": "soi-village-data"
+		}
+	],
+	// Custom subdomain (4080studio.com is already on Cloudflare -> auto DNS + SSL).
+	"routes": [
+		{
+			"pattern": "indianvillage.4080studio.com",
+			"custom_domain": true
+		}
+	]
 }

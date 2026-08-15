@@ -15,7 +15,7 @@ NAMES = {
 }
 m = []
 for f in sorted(os.listdir(D)):
-    if not f.endswith(".geojson"): continue
+    if not f.endswith(".geojson") or f == "india.geojson": continue
     slug = f[:-8]
     m.append({"slug": slug, "name": NAMES.get(slug, slug.replace("-", " ").title())})
 m.sort(key=lambda x: x["name"])

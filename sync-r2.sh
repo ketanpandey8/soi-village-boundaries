@@ -16,7 +16,7 @@ for f in "$DIR"/*.geojson "$DIR"/states.json; do
   [ -e "$f" ] || continue
   echo "→ $(basename "$f")"
   npx wrangler r2 object put "$BUCKET/$(basename "$f")" \
-    --file "$f" --content-type application/json
+    --file "$f" --content-type application/json --remote
   count=$((count + 1))
 done
 echo "✓ Uploaded $count files to r2://$BUCKET"

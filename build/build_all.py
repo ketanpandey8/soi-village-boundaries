@@ -11,7 +11,8 @@ import make_geojson as mg
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW  = os.path.join(ROOT, "data", "raw")
 OUT  = os.path.join(ROOT, "dist", "data")
-CAP  = 24 * 1024 * 1024   # per-file cap (Cloudflare limit is 25 MiB)
+CAP  = 40 * 1024 * 1024   # per-file cap — data is served from R2 (no 25 MiB asset limit),
+                          # so we can keep real village shapes at good resolution
 os.makedirs(OUT, exist_ok=True)
 
 def pretty(fn):

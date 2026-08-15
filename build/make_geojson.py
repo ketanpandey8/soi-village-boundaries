@@ -161,10 +161,7 @@ def convert(shp, out, tol=0.0002, prec=6):
             full = [(round(lo, prec), round(la, prec))
                     for lo, la in (inverse(x, y) for x, y in ring)]
             ll = dp(full, tol)
-            if len(ll) < 4:                    # collapsed -> keep village as its bbox
-                xs = [p[0] for p in full]; ys = [p[1] for p in full]
-                x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-                ll = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
+            if len(ll) < 4: ll = full          # collapsed -> keep the real shape (no bbox artifacts)
             if len(ll) >= 4:
                 if ll[0] != ll[-1]: ll.append(ll[0])
                 proj_rings.append(ll)
