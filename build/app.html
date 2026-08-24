@@ -97,9 +97,9 @@
   path.state{stroke:var(--panel);stroke-width:1.1;vector-effect:non-scaling-stroke;cursor:pointer;transition:opacity .12s}
   path.state:hover{stroke:var(--ink);stroke-width:1.6}
   path.state.hl{stroke:var(--ink);stroke-width:2.6;filter:brightness(1.12)}
-  path.state.nod{fill:color-mix(in srgb,var(--muted) 24%,var(--map-bg));stroke:var(--line-strong);cursor:default}
+  path.state.nod{stroke:var(--line-strong);stroke-dasharray:3.5 2.5;cursor:default}
   path.state.nod:hover{stroke:var(--muted)}
-  path.state.nod.hl{filter:none}
+  path.state.nod.hl{filter:brightness(1.06)}
   path.ctx{fill:transparent;stroke:var(--ctx);stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer;pointer-events:all}
   path.ctx.here{stroke:var(--boundary)}
   path.ctx.hl{stroke:var(--accent);stroke-width:2.4;fill:color-mix(in srgb,var(--accent) 12%,transparent)}
@@ -337,7 +337,8 @@
       el.setAttribute("d",pathFor(f.geometry));
       el.setAttribute("class","state"+(f.properties.villages?"":" nod"));
       el.dataset.slug=f.properties.slug;el.__s=s;
-      if(f.properties.villages)el.style.fill=PALETTE[s%PALETTE.length];
+      const col=PALETTE[s%PALETTE.length];        // colour every state; no-data ones muted + dashed
+      el.style.fill=f.properties.villages?col:`color-mix(in srgb,${col} 55%,var(--map-bg))`;
       frag.appendChild(el);});
     ctx.innerHTML="";ctx.appendChild(frag);
     k=1;tx=0;ty=0;apply();
