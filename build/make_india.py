@@ -151,6 +151,12 @@ def main():
                                     "villages":nv, "districts":nd, "taluks":nt},
                       "geometry":geom})
         print(f"{NAMES.get(slug,slug):32} {nv:6d} villages  {len(json.dumps(geom))//1024:4d} KB  {len(rings_of(geom))} rings", flush=True)
+    # append the unreleased states as "no data" outlines so the India silhouette is complete
+    nd = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nodata-states.geojson")
+    if not only and os.path.exists(nd):
+        extra = json.load(open(nd))["features"]
+        feats += extra
+        print(f"+ {len(extra)} no-data states")
     out = os.path.join(OUT, "india.geojson")
     json.dump({"type":"FeatureCollection","features":feats}, open(out,"w"), separators=(",",":"))
     print(f"\n{len(feats)} states -> india.geojson ({os.path.getsize(out)//1024} KB)")

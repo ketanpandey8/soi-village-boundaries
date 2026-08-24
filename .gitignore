@@ -4,6 +4,7 @@ data/raw/
 build/goa_src/
 build/tmp/
 build/*.geojson
+!build/nodata-states.geojson   # committed: source for the "no data" state outlines
 
 # Generated per-state GeoJSON + national outline (~321 MB). Rebuild with:
 #   python3 build/build_all.py && python3 build/make_india.py && python3 build/make_manifest.py

@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>India Village Boundaries — Survey of India</title>
+<title>India Village Boundaries · Survey of India</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
   :root{
@@ -48,31 +48,42 @@
 
   #body{flex:1;display:flex;position:relative;min-height:0}
 
-  /* sidebar */
-  #sidebar{width:284px;flex:none;background:var(--panel);border-right:1px solid var(--line);
-    display:flex;flex-direction:column;min-height:0;z-index:25}
-  .side-sec{padding:11px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  /* sidebar — a distinct, slightly deeper neutral than the content surface */
+  #sidebar{width:288px;flex:none;background:color-mix(in srgb,var(--panel) 93%,var(--ink) 7%);
+    border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;z-index:25}
+  .side-sec{padding:13px 13px 12px;display:flex;flex-direction:column;min-height:0}
   .side-sec.grow{flex:1;overflow:hidden}
-  .lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 7px}
+  .side-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px}
+  .lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0}
+  .lbl b{color:var(--ink);font-weight:600}
   .field{position:relative;flex:none}
   .field input{width:100%;padding:.5rem .6rem .5rem 1.9rem;font:inherit;font-size:.88rem;color:var(--ink);
     background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;outline:none}
-  .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent)}
+  .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .field input::placeholder{color:var(--muted)}
   .field svg{position:absolute;left:.55rem;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2}
-  .list{margin-top:8px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;-webkit-overflow-scrolling:touch}
-  .row{display:flex;align-items:center;gap:.5rem;padding:.36rem .45rem;border-radius:7px;cursor:pointer;
-    user-select:none;font-size:.87rem;line-height:1.2}
+  .list{margin-top:9px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;-webkit-overflow-scrolling:touch}
+  .row{display:flex;align-items:center;gap:.55rem;padding:.4rem .5rem;border-radius:8px;cursor:pointer;
+    user-select:none;font-size:.875rem;line-height:1.2;transition:background .12s}
   .row:hover{background:var(--bg)}
-  .row .sw{width:12px;height:12px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.18)}
+  .row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .row .sw{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
   .row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .row .ct{font-family:var(--mono);font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
-  .row.active{background:color-mix(in srgb,var(--accent) 15%,transparent);font-weight:600}
-  .row.selrow{outline:1px solid var(--accent);outline-offset:-1px;background:var(--bg)}
-  .backbtn{display:flex;align-items:center;gap:.4rem;width:100%;padding:.5rem .6rem;font:inherit;font-size:.86rem;
-    color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;cursor:pointer;margin-bottom:9px}
+  .row.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-ink);font-weight:600}
+  .row.active .ct{color:var(--accent-ink)}
+  .row.selrow{background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .row.nodata{cursor:default;opacity:.6}
+  .row.nodata:hover{background:transparent}
+  .ct.nodat{font-family:var(--sans);font-style:italic;font-size:.72rem}
+  .backbtn{display:flex;align-items:center;gap:.45rem;width:100%;padding:.5rem .65rem;font:inherit;font-size:.86rem;font-weight:500;
+    color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:9px;cursor:pointer;
+    margin-bottom:11px;transition:border-color .12s,color .12s}
   .backbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .backbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .backbtn .arw{font-size:1.05em;line-height:0}
   #stateSec{display:none}
-  .note{flex:none;margin:8px 2px 0;font-size:.7rem;line-height:1.4;color:var(--muted)}
+  .note{flex:none;margin:10px 2px 0;font-size:.7rem;line-height:1.45;color:var(--muted)}
 
   /* map */
   #stage{flex:1;position:relative;min-width:0;background:var(--map-sea)}
@@ -86,14 +97,20 @@
   path.state{stroke:var(--panel);stroke-width:1.1;vector-effect:non-scaling-stroke;cursor:pointer;transition:opacity .12s}
   path.state:hover{stroke:var(--ink);stroke-width:1.6}
   path.state.hl{stroke:var(--ink);stroke-width:2.6;filter:brightness(1.12)}
+  path.state.nod{fill:color-mix(in srgb,var(--muted) 24%,var(--map-bg));stroke:var(--line-strong);cursor:default}
+  path.state.nod:hover{stroke:var(--muted)}
+  path.state.nod.hl{filter:none}
   path.ctx{fill:transparent;stroke:var(--ctx);stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer;pointer-events:all}
   path.ctx.here{stroke:var(--boundary)}
   path.ctx.hl{stroke:var(--accent);stroke-width:2.4;fill:color-mix(in srgb,var(--accent) 12%,transparent)}
 
   #tools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;z-index:10}
   #tools button{width:34px;height:34px;border:1px solid var(--line);background:var(--panel);color:var(--ink);
-    border-radius:9px;box-shadow:var(--shadow);cursor:pointer;font-size:1rem;display:grid;place-items:center;line-height:1}
+    border-radius:9px;box-shadow:var(--shadow);cursor:pointer;font-size:1rem;display:grid;place-items:center;line-height:1;
+    transition:border-color .12s,color .12s}
   #tools button:hover{border-color:var(--accent);color:var(--accent)}
+  #tools button:active{transform:translateY(1px)}
+  #tools button:focus-visible,#themeBtn:focus-visible,#menuBtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
   #info{position:absolute;left:12px;bottom:12px;width:262px;max-width:calc(100% - 24px);
     background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
@@ -110,11 +127,15 @@
   #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
   #info dd.code{font-family:var(--mono);font-size:.8rem}
   #info .go{margin-top:10px;color:var(--accent);font-size:.8rem;font-weight:600}
+  #info .empty{margin:2px 0 0;font-size:.82rem;line-height:1.45;color:var(--muted)}
 
-  #status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.9rem;color:var(--muted);
-    background:var(--panel);border:1px solid var(--line);padding:.55rem 1rem;border-radius:10px;box-shadow:var(--shadow);
-    display:none;z-index:20}
-  #status.show{display:block}
+  #status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.88rem;color:var(--ink);
+    background:var(--panel);border:1px solid var(--line);padding:.6rem .95rem;border-radius:10px;box-shadow:var(--shadow);
+    display:none;align-items:center;gap:.55rem;z-index:20}
+  #status.show{display:flex}
+  #status::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent);
+    animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
   .cred{position:absolute;bottom:8px;right:12px;font-size:.66rem;color:var(--muted);
     background:color-mix(in srgb,var(--panel) 78%,transparent);padding:2px 7px;border-radius:6px;z-index:5}
   #backdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:24}
@@ -142,22 +163,22 @@
 
   <div id="body">
     <aside id="sidebar">
-      <div class="side-sec grow">
-        <div class="lbl">States &amp; UTs — click to explore</div>
+      <div class="side-sec grow" id="statesSec">
+        <div class="side-head"><div class="lbl"><b id="stateCount"></b> States &amp; UTs</div></div>
         <div class="field">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
           <input id="stateSearch" type="text" placeholder="Find a state…" autocomplete="off" spellcheck="false">
         </div>
         <div class="list" id="stateList"></div>
-        <p class="note">Only the 27 states &amp; UTs published by Survey of India are shown. J&amp;K, Ladakh, Himachal, Assam and other NE states aren't in the public release yet.</p>
+        <p class="note">27 states &amp; UTs carry village data; the rest await Survey of India's public release.</p>
       </div>
       <div class="side-sec grow" id="stateSec">
-        <button class="backbtn" id="backBtn">‹ All of India</button>
+        <button class="backbtn" id="backBtn"><span class="arw">‹</span> All states</button>
         <div class="field">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
           <input id="villSearch" type="text" placeholder="Search a village…" autocomplete="off" spellcheck="false">
         </div>
-        <div class="lbl" id="distLbl" style="margin-top:10px">Districts</div>
+        <div class="side-head" style="margin-top:11px"><div class="lbl" id="distLbl">Districts</div></div>
         <div class="list" id="distList"></div>
       </div>
     </aside>
@@ -192,6 +213,7 @@
   const nf=n=>n.toLocaleString();
   const $=id=>document.getElementById(id);
   const NS="http://www.w3.org/2000/svg", PW=1000, pad=26;
+  const DATA_V="3";   // bump when dist/data is regenerated (busts CDN/browser cache)
 
   const svg=$("map"), world=$("world"), ctx=$("ctx"), scene=$("scene"), info=$("info"), statusEl=$("status");
   let INDIA=[], STATES=[];                 // overview outlines + manifest
@@ -295,10 +317,10 @@
     info.classList.add("show");wireClose();}
   function cardState(s){const p=INDIA[s].properties;
     info.innerHTML=`<button class="close" aria-label="Close">×</button>
-      <p class="vname">${esc(p.name)}</p>
-      <dl><dt>Villages</dt><dd>${nf(p.villages)}</dd><dt>Districts</dt><dd>${p.districts}</dd>
-      <dt>Taluks</dt><dd>${p.taluks}</dd></dl>
-      <div class="go">Click to explore villages ›</div>`;
+      <p class="vname">${esc(p.name)}</p>`+(p.villages
+        ?`<dl><dt>Villages</dt><dd>${nf(p.villages)}</dd><dt>Districts</dt><dd>${p.districts}</dd>
+           <dt>Taluks</dt><dd>${p.taluks}</dd></dl><div class="go">Select to explore villages ›</div>`
+        :`<p class="empty">No village data yet. Survey of India hasn't released this state or UT in the public database.</p>`);
     info.classList.add("show");wireClose();}
   function wireClose(){info.querySelector(".close").onclick=()=>{info.classList.remove("show");
     selI=-1;if(selEl)selEl.setAttribute("d","");};}
@@ -306,14 +328,17 @@
   // ---------- overview ----------
   function drawOverview(){
     mode="overview";feats=[];scene.innerHTML="";activeDist=null;selI=-1;hoverI=-1;
-    $("crumb").innerHTML="<b>All of India</b> · 27 states &amp; UTs";
-    $("stateSec").style.display="none";info.classList.remove("show");
+    $("crumb").innerHTML=`<b>All of India</b> · ${STATES.filter(s=>s.villages).length} states with village data`;
+    $("stateSec").style.display="none";$("statesSec").style.display="flex";info.classList.remove("show");
     location.hash="";
     fitTo(INDIA);
     const frag=document.createDocumentFragment();
     INDIA.forEach((f,s)=>{const el=document.createElementNS(NS,"path");
-      el.setAttribute("d",pathFor(f.geometry));el.setAttribute("class","state");
-      el.dataset.slug=f.properties.slug;el.style.fill=PALETTE[s%PALETTE.length];el.__s=s;frag.appendChild(el);});
+      el.setAttribute("d",pathFor(f.geometry));
+      el.setAttribute("class","state"+(f.properties.villages?"":" nod"));
+      el.dataset.slug=f.properties.slug;el.__s=s;
+      if(f.properties.villages)el.style.fill=PALETTE[s%PALETTE.length];
+      frag.appendChild(el);});
     ctx.innerHTML="";ctx.appendChild(frag);
     k=1;tx=0;ty=0;apply();
     markActive(null);
@@ -322,11 +347,12 @@
   // ---------- a state ----------
   async function enterState(slug){
     const meta=STATES.find(s=>s.slug===slug);if(!meta)return;
+    if(!meta.villages){cardState(INDIA.findIndex(f=>f.properties.slug===slug));return;}  // no data yet
     statusEl.textContent="Loading "+meta.name+"…";statusEl.classList.add("show");
     activeDist=null;$("villSearch").value="";selI=-1;hoverI=-1;info.classList.remove("show");
     if(window.innerWidth<=860)$("app").classList.remove("nav-open");
     try{
-      const r=await fetch("data/"+slug+".geojson");if(!r.ok)throw new Error(r.status);
+      const r=await fetch("data/"+slug+".geojson?v="+DATA_V);if(!r.ok)throw new Error(r.status);
       feats=(await r.json()).features;
     }catch(e){statusEl.textContent="Could not load "+meta.name;return;}
     mode="state";location.hash=slug;selI=-1;hoverI=-1;
@@ -355,7 +381,7 @@
     k=1;tx=0;ty=0;apply();
     // sidebar district list
     $("crumb").innerHTML=`<b>${esc(meta.name)}</b> · ${nf(feats.length)} villages · ${dists.length} districts · ${tset.size} taluks`;
-    $("distLbl").textContent=dists.length+" districts — click to isolate";
+    $("distLbl").innerHTML=`<b>${dists.length}</b> districts`;
     const dl=$("distList");dl.innerHTML="";
     dists.forEach(n=>{const el=document.createElement("div");el.className="row";el.dataset.d=n;
       el.innerHTML=`<span class="sw" style="background:${distColors[n]}"></span>
@@ -363,7 +389,7 @@
       el.onclick=()=>{activeDist=activeDist===n?null:n;
         [...dl.children].forEach(c=>c.classList.toggle("selrow",c.dataset.d===activeDist));applyFilter();};
       dl.appendChild(el);});
-    $("stateSec").style.display="flex";markActive(slug);
+    $("statesSec").style.display="none";$("stateSec").style.display="flex";markActive(slug);
     statusEl.classList.remove("show");
   }
 
@@ -413,9 +439,13 @@
   // ---------- sidebar state list ----------
   function hoverState(slug,on){const p=ctx.querySelector('path[data-slug="'+slug+'"]');if(p)p.classList.toggle("hl",on);}
   function buildStateList(){const wrap=$("stateList");wrap.innerHTML="";
-    STATES.forEach(s=>{const el=document.createElement("div");el.className="row";el.dataset.slug=s.slug;
-      el.innerHTML=`<span class="nm">${esc(s.name)}</span><span class="ct">${s.villages?nf(s.villages):""}</span>`;
-      el.onclick=()=>enterState(s.slug);
+    $("stateCount").textContent=STATES.length;
+    STATES.forEach(s=>{const el=document.createElement("div");
+      el.className="row"+(s.villages?"":" nodata");el.dataset.slug=s.slug;el.tabIndex=0;
+      el.innerHTML=`<span class="nm">${esc(s.name)}</span>`+
+        (s.villages?`<span class="ct">${nf(s.villages)}</span>`:`<span class="ct nodat">no data</span>`);
+      if(s.villages)el.onclick=()=>enterState(s.slug);
+      el.onkeydown=e=>{if((e.key==="Enter"||e.key===" ")&&s.villages){e.preventDefault();enterState(s.slug);}};
       el.onmouseenter=()=>hoverState(s.slug,true);el.onmouseleave=()=>hoverState(s.slug,false);
       wrap.appendChild(el);});}
   function markActive(slug){[...$("stateList").children].forEach(c=>c.classList.toggle("active",c.dataset.slug===slug));}
@@ -432,8 +462,8 @@
     document.documentElement.setAttribute("data-theme",dark?"light":"dark");};
 
   // ---------- boot ----------
-  Promise.all([fetch("data/india.geojson").then(r=>r.json()),
-               fetch("data/states.json").then(r=>r.json())])
+  Promise.all([fetch("data/india.geojson?v="+DATA_V).then(r=>r.json()),
+               fetch("data/states.json?v="+DATA_V).then(r=>r.json())])
     .then(([india,states])=>{
       INDIA=india.features.sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
       STATES=INDIA.map(f=>f.properties);          // slug,name,villages,districts,taluks
