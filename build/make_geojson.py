@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Convert a Survey of India state shapefile (Lambert Conformal Conic / WGS84)
-to WGS84 lat-long GeoJSON. Pure stdlib — no GDAL/pyshp needed.
+to WGS84 lat-long GeoJSON. Pure stdlib, no GDAL or pyshp needed.
 
 Usage: python3 make_geojson.py <path-to.shp> <out.geojson> [dp_tolerance_deg]
 The LCC parameters are hard-coded from the SoI .prj (same for every state).
 """
-import struct, math, json, sys, re
+import struct, math, json, sys, re, os
 
 # WGS84 ellipsoid
 A    = 6378137.0
@@ -121,6 +121,14 @@ def read_dbf(path):
         recs.append(o)
     return recs
 
+def field(rec, *names):
+    """First non-empty value among `names`, matched case-insensitively."""
+    low = {k.lower(): v for k, v in rec.items()}
+    for n in names:
+        v = low.get(n)
+        if v: return v
+    return ""
+
 # --- Douglas-Peucker in lon/lat degrees (iterative: safe for huge rings) ---
 def dp(points, tol):
     n = len(points)
@@ -181,18 +189,107 @@ def convert(shp, out, tol=0.0002, prec=6):
         else:
             geom = {"type": "MultiPolygon", "coordinates": polys}
         # compact keys keep big-state files small: n=name d=district s=subdist l=lgd c=cat a=area
-        props = {"n": rec.get("Vill_name", ""), "d": rec.get("District", ""),
-                 "s": rec.get("Sub_dist", ""), "l": rec.get("Vill_LGD", "")}
-        cat = rec.get("Vill_cat", "")
-        if cat: props["c"] = cat               # omit when empty (26 of 27 states)
+        # Field names vary by state (case, "Subdist", MP's "Villl_name"), so look them up loosely.
+        props = {"n": field(rec, "vill_name", "villl_name"), "d": field(rec, "district"),
+                 "s": field(rec, "sub_dist", "subdist"), "l": field(rec, "vill_lgd")}
+        if props["l"].strip("0") == "": props["l"] = ""      # Punjab uses 0 for "not assigned"
+        # category: normalise spelling ("RURAL", "Partly_Urban", "Forest_village" ...).
+        # Rural is the norm, so it's omitted (the app reads it from the file's meta.catDefault);
+        # an explicit "" marks a village the source leaves uncategorised.
+        cat = field(rec, "vill_cat").replace("_", " ").strip().capitalize()
+        if cat != "Rural": props["c"] = cat
         try:
-            a = round(float(rec.get("Shape_Area", 0))/1e6, 3)
+            a = round(float(field(rec, "shape_area") or 0)/1e6, 3)
             if a: props["a"] = a
-        except: pass
+        except ValueError: pass
         feats.append({"type": "Feature", "properties": props, "geometry": geom})
-    fc = {"type": "FeatureCollection", "features": feats}
+    fc = {"type": "FeatureCollection", "meta": {"catDefault": "Rural"}, "features": feats}
     json.dump(fc, open(out, "w"), separators=(",", ":"))
     return len(feats)
+
+def _polys(rings):
+    """Group rings into polygons (ESRI: clockwise outer = negative area in lon/lat) -> geometry."""
+    polys, cur = [], None
+    for r in rings:
+        if signed_area(r) < 0:
+            if cur: polys.append(cur)
+            cur = [r]
+        else:
+            if cur: cur.append(r)
+            else: cur = [r]
+    if cur: polys.append(cur)
+    return ({"type": "Polygon", "coordinates": polys[0]} if len(polys) == 1
+            else {"type": "MultiPolygon", "coordinates": polys})
+
+def _props(rec):
+    # compact keys keep files small: n=name d=district s=subdist l=lgd c=cat a=area.
+    # Field names vary by state (case, "Subdist", MP's "Villl_name"), so look them up loosely.
+    props = {"n": field(rec, "vill_name", "villl_name"), "d": field(rec, "district"),
+             "s": field(rec, "sub_dist", "subdist"), "l": field(rec, "vill_lgd")}
+    if props["l"].strip("0") == "": props["l"] = ""      # Punjab uses 0 for "not assigned"
+    # Rural is the norm, so it's omitted (the app reads meta.catDefault); an explicit ""
+    # marks a village the source leaves uncategorised.
+    cat = field(rec, "vill_cat").replace("_", " ").strip().capitalize()
+    if cat != "Rural": props["c"] = cat
+    try:
+        a = round(float(field(rec, "shape_area") or 0)/1e6, 3)
+        if a: props["a"] = a
+    except ValueError: pass
+    return props
+
+def shp_lon_span(shp, inverse):
+    """Approximate longitude span of the state, from the shapefile header bbox."""
+    xmin, ymin, xmax, ymax = struct.unpack("<4d", open(shp, "rb").read(100)[36:68])
+    lons = [inverse(x, y)[0] for x in (xmin, xmax) for y in (ymin, (ymin+ymax)/2, ymax)]
+    return max(lons) - min(lons)
+
+def convert_split(shp, disp_out, detail_dir, disp_tol):
+    """Write two things from one read of the shapefile:
+      detail_dir/<district>.geojson  every source vertex (6 dp, ~0.1 m), no simplification
+      disp_out                       the whole state simplified by disp_tol, with attributes,
+                                     for zoomed-out views where the removed points are sub-pixel
+    Villages appear in the same order in both, so the app can swap in full detail per district.
+    """
+    inverse = make_inverse(open(shp[:-4] + ".prj").read())
+    shapes = read_shp(shp)
+    recs = read_dbf(shp[:-4] + ".dbf")
+    os.makedirs(detail_dir, exist_ok=True)
+    files, handles, counts, disp = {}, {}, {}, []
+    taken = set()
+    for rings_xy, rec in zip(shapes, recs):
+        if not rings_xy: continue
+        full_rings, disp_rings = [], []
+        for ring in rings_xy:
+            full = [(round(lo, 6), round(la, 6)) for lo, la in (inverse(x, y) for x, y in ring)]
+            if len(full) < 4: continue
+            if full[0] != full[-1]: full.append(full[0])
+            full_rings.append(full)
+            coarse = [(round(lo, 5), round(la, 5)) for lo, la in dp(full, disp_tol)]
+            if len(coarse) < 4: coarse = [(round(lo, 5), round(la, 5)) for lo, la in full]
+            disp_rings.append(coarse)
+        if not full_rings: continue
+        props = _props(rec)
+        d = props["d"]
+        if d not in files:                      # file name per district, unique even if slugs collide
+            base = re.sub(r"[^a-z0-9]+", "-", d.lower()).strip("-") or "no-district"
+            name, k = base, 2
+            while name in taken: name, k = f"{base}-{k}", k + 1
+            taken.add(name); files[d] = name; counts[d] = 0
+            h = open(os.path.join(detail_dir, name + ".geojson"), "w")
+            h.write('{"type":"FeatureCollection","features":['); handles[d] = h
+        h = handles[d]
+        if counts[d]: h.write(",")
+        # detail keeps only the LGD code (to check alignment); attributes live in the display file
+        json.dump({"type": "Feature", "properties": {"l": props["l"]}, "geometry": _polys(full_rings)},
+                  h, separators=(",", ":"))
+        counts[d] += 1
+        disp.append({"type": "Feature", "properties": props, "geometry": _polys(disp_rings)})
+    for h in handles.values(): h.write("]}"); h.close()
+    fc = {"type": "FeatureCollection",
+          "meta": {"catDefault": "Rural", "dispTol": disp_tol, "detail": files},
+          "features": disp}
+    json.dump(fc, open(disp_out, "w"), separators=(",", ":"))
+    return len(disp)
 
 if __name__ == "__main__":
     shp, out = sys.argv[1], sys.argv[2]

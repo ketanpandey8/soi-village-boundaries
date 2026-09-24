@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Convert all 27 Survey of India state zips -> per-state GeoJSON in dist/data/.
-Adaptive simplification keeps each file under a size cap so the site loads fast.
+"""Convert all 27 Survey of India state zips into dist/data/:
+  <slug>.geojson            simplified display file with all attributes
+  <slug>/<district>.geojson full-detail boundaries (every source vertex), loaded on zoom
 Also writes dist/data/states.json (the state picker manifest).
 """
 import os, re, zipfile, tempfile, shutil, json, sys
@@ -11,8 +12,6 @@ import make_geojson as mg
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW  = os.path.join(ROOT, "data", "raw")
 OUT  = os.path.join(ROOT, "dist", "data")
-CAP  = 40 * 1024 * 1024   # per-file cap — data is served from R2 (no 25 MiB asset limit),
-                          # so we can keep real village shapes at good resolution
 os.makedirs(OUT, exist_ok=True)
 
 def pretty(fn):
@@ -40,16 +39,19 @@ def main():
                         for f in fs if f.lower().endswith(".shp")), None)
             if not shp:
                 print(f"!! no .shp in {zf}"); continue
-            tol, prec = 0.0002, 5
-            for _ in range(12):                    # tighten until under cap
-                n = mg.convert(shp, outp, tol, prec)
-                sz = os.path.getsize(outp)
-                if sz <= CAP: break
-                if tol > 0.01 and prec > 4: prec = 4   # last-resort precision drop
-                tol *= 1.6
-        manifest.append({"slug": slug, "name": name, "count": n,
-                         "kb": round(sz/1024)})
-        print(f"{name:32} {n:6d} villages  {sz//1024:6d} KB  tol={tol:.5f}", flush=True)
+            # Display tolerance scales with the state's width: a state fills ~1000 px at the
+            # starting zoom, so this stays under ~0.6 px until about 4x zoom. The app swaps in
+            # the full-detail district files before simplification could become visible.
+            inv = mg.make_inverse(open(shp[:-4] + ".prj").read())
+            tol = max(0.00005, mg.shp_lon_span(shp, inv) * 0.00015)
+            ddir = os.path.join(OUT, slug)
+            if os.path.isdir(ddir): shutil.rmtree(ddir)
+            n = mg.convert_split(shp, outp, ddir, tol)
+        sz = os.path.getsize(outp)
+        full = sum(os.path.getsize(os.path.join(ddir, f)) for f in os.listdir(ddir))
+        manifest.append({"slug": slug, "name": name, "count": n, "kb": round(sz/1024)})
+        print(f"{name:34} {n:6d} villages  display {sz//1024:6d} KB  "
+              f"full {full//1048576:4d} MB in {len(os.listdir(ddir))} districts  tol={tol:.5f}", flush=True)
     manifest.sort(key=lambda m: m["name"])
     json.dump(manifest, open(os.path.join(OUT, "states.json"), "w"))
     tot = sum(m["count"] for m in manifest)

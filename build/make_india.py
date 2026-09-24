@@ -135,7 +135,10 @@ def build_state(gj_path):
             else {"type": "MultiPolygon", "coordinates": polys})
     dists = {f["properties"].get("d","") for f in feats if f["properties"].get("d")}
     taluks = {f["properties"].get("s","") for f in feats if f["properties"].get("s")}
-    return geom, len(feats), len(dists), len(taluks)
+    # completeness, straight from the source attributes (shown on the overview card)
+    gaps = {"noName": sum(1 for f in feats if not f["properties"].get("n","").strip()),
+            "noLgd":  sum(1 for f in feats if not f["properties"].get("l","").strip())}
+    return geom, len(feats), len(dists), len(taluks), gaps
 
 def main():
     only = sys.argv[1] if len(sys.argv) > 1 else None
@@ -145,10 +148,10 @@ def main():
     for fn in files:
         slug = fn[:-8]
         if only and slug != only: continue
-        geom, nv, nd, nt = build_state(os.path.join(OUT, fn))
+        geom, nv, nd, nt, gaps = build_state(os.path.join(OUT, fn))
         feats.append({"type":"Feature",
                       "properties":{"slug":slug, "name":NAMES.get(slug, slug.replace("-"," ").title()),
-                                    "villages":nv, "districts":nd, "taluks":nt},
+                                    "villages":nv, "districts":nd, "taluks":nt, **gaps},
                       "geometry":geom})
         print(f"{NAMES.get(slug,slug):32} {nv:6d} villages  {len(json.dumps(geom))//1024:4d} KB  {len(rings_of(geom))} rings", flush=True)
     # append the unreleased states as "no data" outlines so the India silhouette is complete
