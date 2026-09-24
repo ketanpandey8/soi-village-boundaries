@@ -331,7 +331,15 @@
   try{const t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(_){}
   const PALETTE=["#6ba368","#e0a13c","#d9663f","#3d94a6","#8a6fb0","#c0577f","#4d9670",
     "#c99a3c","#5b8def","#d17c4a","#57a99a","#b0563f","#7aa03f","#9a6ac0","#3f9fb0","#c77d9e"];
-  const catLabel=c=>{c=String(c).replace(/_/g," ").trim().toLowerCase();return c.charAt(0).toUpperCase()+c.slice(1);};
+  // Categories as the source spells them, with only unambiguous abbreviations and typos expanded
+  // (Odisha "R", Karnataka "Rul"/"Oth"/"Urb"/"Purb" ...). Placeholders ("Na", "<null>", an LGD code
+  // typed into the category field) count as missing. Unusual real values ("Doob village") are kept.
+  const CAT_FIX={r:"Rural",rul:"Rural",rral:"Rural",o:"Others",oth:"Others",other:"Others",urb:"Urban",
+    fu:"Fully urban",purb:"Partly urban","party urban":"Partly urban","partially urban":"Partly urban",
+    na:"","<null>":""};
+  function normCat(c){if(c==null)return null;const k=String(c).replace(/_/g," ").replace(/\s+/g," ").trim().toLowerCase();
+    if(k in CAT_FIX)return CAT_FIX[k];if(/^\d+$/.test(k))return "";return k.charAt(0).toUpperCase()+k.slice(1);}
+  const catLabel=c=>normCat(c)||"";
   const NR='<span class="nr">not in source</span>';
   const merc=(lo,la)=>[lo,Math.log(Math.tan(Math.PI/4+la*Math.PI/360))*180/Math.PI];
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -447,7 +455,7 @@
   // ---------- info card ----------
   // anything the source leaves blank says so, rather than showing a dash or a guess
   function cardVillage(i){const p=feats[i].properties;
-    const c="c" in p?p.c:catDefault;                    // null = this file predates categories
+    const c=normCat("c" in p?p.c:catDefault);           // null = this file predates categories
     const catRow=c==null?"":`<dt>Category</dt><dd>${c?esc(catLabel(c)):NR}</dd>`;
     info.innerHTML=`<button class="close" aria-label="Close">×</button>
       <p class="vname">${p.n?esc(p.n):'<span class="nr">Name not in source</span>'}</p>
@@ -784,7 +792,7 @@
       if(!p.l)g.noLgd.push(i);else{const s=seen.get(p.l);
         if(s==null)seen.set(p.l,i);else{if(s>=0){g.dupLgd.push(s);seen.set(p.l,-1);}g.dupLgd.push(i);}}
       if(!p.s)g.noTaluk.push(i);
-      if(p.c==="")g.noCat.push(i);else if(p.c&&catLabel(p.c)==="Under process")g.underProc.push(i);});
+      const c=normCat(p.c);if(c==="")g.noCat.push(i);else if(c==="Under process")g.underProc.push(i);});
     gapSets=g;gapOn=null;gapEl.setAttribute("d","");
     const N=feats.length, pct=n=>n/N<.01?"<1%":Math.round(n/N*100)+"%";
     const TXT={noName:"have no name",noLgd:"have no LGD code",dupLgd:"share an LGD code with another village",
