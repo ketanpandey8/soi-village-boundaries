@@ -1,5 +1,6 @@
 // Serves the static app, proxies /data/* from the R2 bucket, gives state and village pages
-// (/goa, /goa/626863) their own title, link preview and text, and serves the sitemaps.
+// (/goa, /goa/626863) their own title, link preview and text, serves the sitemaps, and
+// relays PostHog analytics through this domain (/relay/*).
 //
 // Worker responses aren't cached by Cloudflare's CDN automatically, so without the
 // Cache API every request streams the file out of R2 again (UP is ~41 MB raw). The
@@ -10,6 +11,8 @@ const PAGE = /^\/(embed\/)?([a-z-]+)(?:\/([^/]+))?\/?$/;   // [/embed]/<state>[/
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/relay/")) return relay(request, url);
 
     if (url.pathname.startsWith("/data/")) {
       if (request.method !== "GET" && request.method !== "HEAD")
@@ -202,4 +205,21 @@ async function apiAnswer(env, url) {
       [`${origin}/api/village/<state>/<lgd>.geojson`]: "the village boundary as a GeoJSON Feature, every surveyed point",
     }, example: `${origin}/api/village/626847`, source: CREDIT });
   return json({ error: "Not found. See /api" }, 404);
+}
+
+// ---------- PostHog relay ----------
+// Ad blockers block PostHog's own domains, so the app sends analytics to /relay/* here and
+// this forwards it: the library files to the assets host, events to the ingestion host.
+// PostHog places visitors by IP, so the visitor's (not the Worker's) goes along.
+async function relay(request, url) {
+  const path = url.pathname.slice("/relay".length);
+  const host = /^\/(static|array)\//.test(path) ? "us-assets.i.posthog.com" : "us.i.posthog.com";
+  const headers = new Headers(request.headers);
+  headers.delete("cookie");                       // this site's cookies aren't PostHog's business
+  const ip = request.headers.get("cf-connecting-ip");
+  if (ip) headers.set("x-forwarded-for", ip);
+  return fetch(new Request(`https://${host}${path}${url.search}`, {
+    method: request.method, headers, redirect: "manual",
+    body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+  }));
 }
