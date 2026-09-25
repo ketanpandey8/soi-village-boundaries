@@ -1,12 +1,12 @@
 {
-	// Cloudflare Worker — serves the app (static assets) and proxies /data/* to R2.
+	// Cloudflare Worker: serves the app (static assets) and proxies /data/* to R2.
 	// Code deploys via `npx wrangler deploy` (or auto-deploy once Git-connected).
 	// Map data lives in the R2 bucket, uploaded with ./sync-r2.sh (not in git).
 	"name": "village-boundaries",
 	"compatibility_date": "2026-08-01",
 	"main": "src/worker.js",
 	// Static app files. dist/.assetsignore keeps the ~321 MB dist/data/ OUT of the
-	// asset upload — that data is served from R2 instead.
+	// asset upload. That data is served from R2 instead.
 	"assets": {
 		"directory": "./dist",
 		"binding": "ASSETS"
@@ -18,6 +18,17 @@
 			"bucket_name": "soi-village-data"
 		}
 	],
+	// Preview builds (non-main branches run `wrangler preview`) need their own bindings.
+	// They read the same bucket: the Worker only ever reads from R2, and a preview
+	// without the map data would be useless.
+	"previews": {
+		"r2_buckets": [
+			{
+				"binding": "DATA",
+				"bucket_name": "soi-village-data"
+			}
+		]
+	},
 	// Custom subdomain (4080studio.com is already on Cloudflare -> auto DNS + SSL).
 	"routes": [
 		{
