@@ -99,7 +99,13 @@
   #stateSec.searching #distHead,#stateSec.searching #distList{display:none}
   .rsum{flex:none;font-size:.72rem;line-height:1.4;color:var(--muted);padding:0 2px 6px}
   .rsum b{color:var(--ink);font-family:var(--mono);font-weight:600}
-  #villResults{overflow-y:auto;display:flex;flex-direction:column;gap:1px;min-height:0;-webkit-overflow-scrolling:touch}
+  /* home screen: villages from every state, under any matching states */
+  #nWrap{display:none;flex-direction:column;min-height:0;margin-top:9px}
+  #statesSec.vsearch #nWrap{display:flex;flex:1 1 0}
+  #statesSec.vsearch #stateList{flex:0 1 auto;max-height:35%}
+  #statesSec.vsearch #stateList:empty{margin:0}
+  #statesSec.vsearch .note{display:none}
+  #villResults,#nResults{overflow-y:auto;display:flex;flex-direction:column;gap:1px;min-height:0;-webkit-overflow-scrolling:touch}
   .res{display:block;width:100%;text-align:left;padding:.42rem .55rem;border:none;border-radius:8px;
     background:none;font:inherit;color:var(--ink);cursor:pointer}
   .res.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
@@ -144,6 +150,7 @@
   #tools button:hover{border-color:var(--accent);color:var(--accent)}
   #tools button:active{transform:translateY(1px)}
   /* quality switch: filled when full detail is on, plain when the map is simplified */
+  #tools #locBtn[aria-busy="true"] svg{animation:pulse 1s ease-in-out infinite}
   #tools #qBtn{display:none;margin-top:4px;font-size:.66rem;font-weight:600;letter-spacing:.04em}
   #app.in-state #tools #qBtn{display:grid}
   #tools #qBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
@@ -218,19 +225,20 @@
     padding:.3rem .7rem;box-shadow:var(--shadow);white-space:nowrap}
   #detailChip.show{display:flex}
   /* shown when full detail is being held back on a slow connection or device */
-  #qualityTip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:13;display:none;align-items:center;gap:.6rem;
+  #qualityTip,#toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:13;display:none;align-items:center;gap:.6rem;
     width:max-content;max-width:calc(100% - 110px);padding:.45rem .5rem .45rem .8rem;font-size:.8rem;line-height:1.35;
     color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
-  #qualityTip.show{display:flex}
-  #qualityTip .qt{color:var(--muted)}
+  #qualityTip.show,#toast.show{display:flex}
+  #toast{z-index:14}
+  #qualityTip .qt,#toast .qt{color:var(--muted)}
   #qualityTip .qt b{color:var(--ink);font-weight:600}
   #qualityTip .hq{flex:none;border:none;border-radius:7px;background:var(--accent);color:var(--panel);font:inherit;font-size:.78rem;
     font-weight:600;padding:.35rem .65rem;cursor:pointer;white-space:nowrap}
   #qualityTip .hq:hover{filter:brightness(1.08)}
-  #qualityTip .dx{flex:none;width:26px;height:26px;border:none;background:none;color:var(--muted);font-size:1rem;cursor:pointer;border-radius:6px}
-  #qualityTip .dx:hover{background:var(--bg);color:var(--ink)}
+  #qualityTip .dx,#toast .dx{flex:none;width:26px;height:26px;border:none;background:none;color:var(--muted);font-size:1rem;cursor:pointer;border-radius:6px}
+  #qualityTip .dx:hover,#toast .dx:hover{background:var(--bg);color:var(--ink)}
   /* phones: the info card owns the bottom edge, so the tip sits top-left, clear of the zoom buttons */
-  @media (max-width:860px){#qualityTip{left:12px;right:58px;transform:none;width:auto;max-width:none}}
+  @media (max-width:860px){#qualityTip,#toast{left:12px;right:58px;transform:none;width:auto;max-width:none}}
   #about .qopts{display:flex;flex-wrap:wrap;gap:.4rem .9rem;margin:.35rem 0}
   #about .qopts label{display:flex;align-items:center;gap:.35rem;cursor:pointer}
   #about .qnote{font-size:.82rem;color:var(--muted)}
@@ -284,9 +292,14 @@
         <div class="side-head"><div class="lbl"><b id="stateCount"></b> States &amp; UTs</div></div>
         <div class="field">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
-          <input id="stateSearch" type="text" placeholder="Find a state…" autocomplete="off" spellcheck="false">
+          <input id="stateSearch" type="search" placeholder="Find a state, village or LGD code…" autocomplete="off" spellcheck="false"
+            role="combobox" aria-controls="nResults" aria-expanded="false" aria-autocomplete="list">
         </div>
         <div class="list" id="stateList"></div>
+        <div id="nWrap">
+          <div class="rsum" id="nSum" role="status" aria-live="polite"></div>
+          <div id="nResults" role="listbox" aria-label="Villages across India"></div>
+        </div>
         <p class="note">27 states and UTs have village data. The Survey of India hasn't released the rest yet.</p>
       </div>
       <div class="side-sec grow" id="stateSec">
@@ -315,6 +328,7 @@
         <button id="zin" aria-label="Zoom in"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
         <button id="zout" aria-label="Zoom out"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
         <button id="zreset" aria-label="Fit to view" title="Fit to view"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button id="locBtn" aria-label="Find the village you are in" title="Find the village you are in"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
         <button id="qBtn" aria-label="Full detail boundaries" aria-pressed="true">HD</button>
       </div>
       <div id="info"></div>
@@ -325,6 +339,7 @@
         <button class="hq" id="hqBtn">Switch to full detail</button>
         <button class="dx" id="qtClose" aria-label="Dismiss">×</button>
       </div>
+      <div id="toast" role="status" aria-live="polite"><span class="qt"></span><button class="dx" aria-label="Dismiss">×</button></div>
       <div id="scalebar" aria-hidden="true"><span class="bar"></span><span class="txt"></span></div>
       <div class="cred">Data © Survey of India · National Geospatial Policy 2022</div>
       <svg id="labels" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -354,9 +369,10 @@
   <p class="qnote" id="qualityNote"></p>
   <h3>Notes</h3>
   <ul>
-    <li>Boundaries are simplified so large states load quickly. Use them for reference, not for legal or survey work.</li>
+    <li>Zoomed out, boundaries are simplified so large states load quickly. Zoom in and every surveyed point loads. Use the map for reference, not for legal or survey work.</li>
     <li>The LGD code is the government's village identifier. It links this map to Census and other datasets. You can search by LGD code to find villages that have no name.</li>
-    <li>Released states use Survey of India boundaries. The grey outlines of unreleased states come from GADM, a third-party dataset, and are shown only for context. Their borders may not match India's official boundary.</li>
+    <li>All borders come from the Survey of India. The grey outlines of unreleased states are from its
+      <a href="https://surveyofindia.gov.in/pages/administrative-boundary-data-base-abdb-" target="_blank" rel="noopener">state boundary database</a>.</li>
   </ul>
 </dialog>
 
@@ -795,9 +811,85 @@
       wrap.appendChild(el);});}
   function markActive(slug){[...$("stateList").children].forEach(c=>c.classList.toggle("active",c.dataset.slug===slug));}
   const ss=$("stateSearch");
-  ss.addEventListener("input",()=>{const q=ss.value.trim().toLowerCase();
+  function filterStates(){const q=ss.value.trim().toLowerCase();
     [...$("stateList").children].forEach(c=>{const s=STATES.find(x=>x.slug===c.dataset.slug);
-      c.style.display=(!q||s.name.toLowerCase().includes(q))?"":"none";});});
+      c.style.display=(!q||s.name.toLowerCase().includes(q))?"":"none";});}
+
+  // ---------- all-India village search (home screen) ----------
+  // make_search.py splits the index by the first two letters of the name (three for busy
+  // prefixes, listed in index.json) and LGD codes by their first two digits, so a query
+  // fetches one small file. The first word must start the name (or LGD code); any other
+  // words can match the name, taluk, district or state.
+  const nBox=$("nResults"), nSum=$("nSum"), N_MAX=60;
+  let nSplit=null, nCache={}, nSeq=0, nRows=[], nOn=-1;
+  const nKey=(t,n)=>[...t.slice(0,n).padEnd(n,"_")].map(c=>c>="a"&&c<="z"?c:"_").join("");
+  function nFile(key){return nCache[key]||(nCache[key]=fetch("data/search/"+key+".json?v="+DATA_V)
+    .then(r=>{if(r.status===404)return {s:[],d:[],t:[],v:[]};   // no names start that way
+      if(!r.ok)throw 0;return r.json();}).catch(()=>{delete nCache[key];return null;}));}
+  const stName=slug=>(STATES.find(s=>s.slug===slug)||{}).name||slug;
+  function nClear(msg){nRows=[];nOn=-1;nBox.innerHTML="";nSum.textContent=msg||"";
+    ss.removeAttribute("aria-activedescendant");}
+  async function runNational(){
+    const raw=ss.value.trim(), q=raw.toLowerCase(), toks=q.split(/\s+/).filter(Boolean), t0=toks[0]||"";
+    const sec=$("statesSec"), seq=++nSeq, num=/^\d+$/.test(t0);
+    if(t0.length<2){sec.classList.remove("vsearch");ss.setAttribute("aria-expanded","false");nClear();return;}
+    sec.classList.add("vsearch");ss.setAttribute("aria-expanded","true");
+    let key;
+    if(num)key="lgd-"+t0.slice(0,2);
+    else{if(!nSplit){const ix=await nFile("index");if(seq!==nSeq)return;
+        if(!ix){nClear("Village search could not load. Check your connection and try again.");return;}
+        nSplit=new Set(ix.split||[]);}
+      key=nKey(t0,2);
+      if(nSplit.has(key)){if(t0.length<3){nClear("Type one more letter to search villages.");return;}key=nKey(t0,3);}}
+    if(!nCache[key])nSum.textContent="Searching villages…";
+    const d=await nFile(key);if(seq!==nSeq)return;
+    if(!d){nClear("Village search could not load. Check your connection and try again.");return;}
+    const rest=toks.slice(1), hits=[];
+    for(const v of d.v){const n=v[0].toLowerCase();
+      if(num?!v[4].startsWith(t0):!n.startsWith(t0))continue;
+      const r={v,slug:d.s[v[1]],d:d.d[v[2]],t:d.t[v[3]]};
+      if(rest.length){const hay=n+" "+(r.t+" "+r.d+" "+stName(r.slug)).toLowerCase();
+        if(!rest.every(t=>hay.includes(t)))continue;}
+      hits.push([num?(v[4]===t0?0:1):(n===q?0:n===t0?1:2),r]);}
+    hits.sort((a,b)=>a[0]-b[0]);                          // files are already in name order
+    nRows=hits.slice(0,N_MAX).map(h=>h[1]);nOn=-1;
+    nSum.innerHTML=!hits.length?"":`<b>${nf(hits.length)}</b> ${hits.length===1?"village":"villages"} across India`+
+      (hits.length>N_MAX?` · showing first ${N_MAX}. Add a district or state name to narrow.`:"");
+    nBox.innerHTML=hits.length?nRows.map((r,j)=>{const v=r.v;
+      const nm=v[0]?(num?esc(v[0]):hlName(v[0],t0)):'<span class="nr">Unnamed</span>';
+      return `<button class="res" id="nres${j}" role="option" data-j="${j}" tabindex="-1">
+        <span class="rn">${nm}${num?' · LGD '+(v[4]===t0?"<mark>"+esc(v[4])+"</mark>":esc(v[4])):""}</span>
+        <span class="rm">${[r.t,r.d].filter(Boolean).map(x=>esc(cap(x))).join(" · ")} · ${esc(stName(r.slug))}</span></button>`;}).join("")
+      :`<p class="rempty">No ${num?"LGD codes":"village names"} start with “${esc(raw)}”.</p>`;
+    nBox.scrollTop=0;nMark(false);}
+  function nMark(scroll){
+    [...nBox.children].forEach((b,j)=>{b.classList.toggle("on",j===nOn);b.setAttribute("aria-selected",j===nOn);});
+    const r=nRows[nOn];ctx.querySelectorAll("path.hl").forEach(p=>p.classList.remove("hl"));
+    if(!r){ss.removeAttribute("aria-activedescendant");return;}
+    ss.setAttribute("aria-activedescendant","nres"+nOn);
+    if(scroll)$("nres"+nOn).scrollIntoView({block:"nearest"});
+    hoverState(r.slug,true);}                                // show which state it's in
+  async function nPick(j){const r=nRows[j];if(!r)return;const v=r.v;
+    if(window.innerWidth<=860){setNav(false);ss.blur();}
+    if(!(mode==="state"&&curSlug===r.slug)&&!await enterState(r.slug))return;
+    const P=f=>f.properties;
+    let i=feats.findIndex(f=>P(f).l===v[4]&&(P(f).n||"")===v[0]);   // LGD codes aren't always unique
+    if(i<0&&v[4])i=feats.findIndex(f=>P(f).l===v[4]);
+    if(i<0)i=feats.findIndex(f=>(P(f).n||"")===v[0]&&(P(f).d||"")===r.d&&(P(f).s||"")===r.t);
+    if(i>=0)setSelect(i,true);}
+  let nt;ss.addEventListener("input",()=>{filterStates();clearTimeout(nt);nt=setTimeout(runNational,150);});
+  ss.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){if(!nRows.length)return;e.preventDefault();
+      nOn=(nOn+(e.key==="ArrowDown"?1:-1)+nRows.length)%nRows.length;nMark(true);}
+    else if(e.key==="Enter"){e.preventDefault();
+      if(nOn>=0){nPick(nOn);return;}
+      const vis=STATES.filter(s=>s.villages&&s.name.toLowerCase().includes(ss.value.trim().toLowerCase()));
+      if(vis.length===1)enterState(vis[0].slug);else if(nRows.length)nPick(0);}
+    else if(e.key==="Escape"&&ss.value){e.preventDefault();ss.value="";filterStates();runNational();}});
+  nBox.addEventListener("click",e=>{const b=e.target.closest(".res");if(b)nPick(+b.dataset.j);});
+  nBox.addEventListener("pointermove",e=>{const b=e.target.closest(".res");
+    if(b&&+b.dataset.j!==nOn){nOn=+b.dataset.j;nMark(false);}});
+  nBox.addEventListener("pointerleave",()=>{nOn=-1;nMark(false);});
 
   $("backBtn").onclick=()=>drawOverview(true);
   function setNav(open){$("app").classList.toggle("nav-open",open);$("menuBtn").setAttribute("aria-expanded",open);}
@@ -808,9 +900,7 @@
   // ---------- about the data ----------
   const about=$("about");
   $("aboutBtn").onclick=()=>{const miss=STATES.filter(s=>!s.villages).map(s=>s.name);
-    // one no-data outline covers two UTs ("Jammu & Kashmir / Ladakh"), so count by name
-    const units=n=>n.split(" / ").length, total=STATES.reduce((t,s)=>t+units(s.name),0);
-    $("aboutReleased").textContent=`${total-miss.reduce((t,n)=>t+units(n),0)} of India's ${total} states and UTs are in the public release so far. `+
+    $("aboutReleased").textContent=`${STATES.length-miss.length} of India's ${STATES.length} states and UTs are in the public release so far. `+
       (miss.length?`Not yet released: ${miss.join(", ")}.`:"");
     syncQualityUI();about.showModal();};
   $("aboutClose").onclick=()=>about.close();
@@ -1007,6 +1097,33 @@
         scheduleLabels();})
       .catch(()=>{if(seq===loadSeq)detailState[n]="error";})
       .finally(()=>{if(seq===loadSeq){detailPending--;detailChip();}});}
+
+  // ---------- find the village you're in ----------
+  // The position stays in the browser: it's matched against the state outlines, then that
+  // state's villages, and never sent anywhere.
+  let toastT;
+  function toast(msg){const t=$("toast");t.querySelector(".qt").textContent=msg;t.classList.add("show");
+    clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),8000);}
+  $("toast").querySelector(".dx").onclick=()=>$("toast").classList.remove("show");
+  const locBtn=$("locBtn");
+  locBtn.onclick=()=>{
+    if(!navigator.geolocation){toast("This browser can't share your location.");return;}
+    locBtn.setAttribute("aria-busy","true");
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      const lon=pos.coords.longitude, lat=pos.coords.latitude;
+      try{await findAt(lon,lat);}finally{locBtn.removeAttribute("aria-busy");}},
+      err=>{locBtn.removeAttribute("aria-busy");
+        toast(err.code===1?"Location is blocked for this site. Allow it in your browser settings to use this.":"Couldn't get your location. Try again outdoors or with Wi-Fi on.");},
+      {enableHighAccuracy:true,timeout:15000,maximumAge:60000});};
+  async function findAt(lon,lat){
+    const s=INDIA.findIndex(f=>inFeature(lon,lat,f.geometry));
+    if(s<0){toast("You seem to be outside the states on this map.");return;}
+    const p=INDIA[s].properties;
+    if(!p.villages){toast(`You're in ${p.name}. The Survey of India hasn't released village data for it yet.`);return;}
+    if(!(mode==="state"&&curSlug===p.slug)&&!await enterState(p.slug))return;
+    const i=hitTest(lon,lat);
+    if(i>=0){setSelect(i,true);return;}
+    toast(`No village boundary at your spot in ${p.name}. You may be in a town, a forest or on a state border.`);}
 
   $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme");
     const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
