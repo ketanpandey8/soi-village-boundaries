@@ -143,6 +143,11 @@
     transition:border-color .12s,color .12s}
   #tools button:hover{border-color:var(--accent);color:var(--accent)}
   #tools button:active{transform:translateY(1px)}
+  /* quality switch: filled when full detail is on, plain when the map is simplified */
+  #tools #qBtn{display:none;margin-top:4px;font-size:.66rem;font-weight:600;letter-spacing:.04em}
+  #app.in-state #tools #qBtn{display:grid}
+  #tools #qBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+  #tools #qBtn[aria-pressed="false"]{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1.5px}
   #tools button:focus-visible,#themeBtn:focus-visible,#menuBtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
   #info{position:absolute;left:12px;bottom:12px;width:262px;max-width:calc(100% - 24px);
@@ -310,6 +315,7 @@
         <button id="zin" aria-label="Zoom in"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
         <button id="zout" aria-label="Zoom out"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
         <button id="zreset" aria-label="Fit to view" title="Fit to view"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button id="qBtn" aria-label="Full detail boundaries" aria-pressed="true">HD</button>
       </div>
       <div id="info"></div>
       <div id="status" class="show">Loading India…</div>
@@ -951,7 +957,10 @@
     else if(navigator.deviceMemory&&navigator.deviceMemory<=2)liteReason="this device has limited memory";
     autoLite=!!liteReason;})();
   const isLite=()=>qualityPref==="lite"||(qualityPref!=="hq"&&autoLite);
-  function markSlow(reason){if(autoLite)return;autoLite=true;liteReason=reason;scheduleLabels();}
+  function markSlow(reason){if(autoLite)return;autoLite=true;liteReason=reason;updateQBtn();scheduleLabels();}
+  function updateQBtn(){const on=!isLite(),b=$("qBtn");b.setAttribute("aria-pressed",on);
+    b.title=on?"Full detail is on. Click for simplified boundaries (faster)"
+              :"Simplified boundaries"+(qualityPref==="lite"?"":" ("+liteReason+")")+". Click for full detail";}
   // bytes per second over the wire for a finished fetch; null if cached, tiny or unknown
   function wireSpeed(url){const e=performance.getEntriesByName(new URL(url,location.href).href).pop();
     if(!e||!e.transferSize||e.encodedBodySize<250*1024)return null;
@@ -960,16 +969,18 @@
   function noteDraw(ms){if(ms>SLOW_DRAW_MS)markSlow("this device is slow to draw the map");}
   function showQualityTip(on){const t=$("qualityTip");on=on&&!tipDismissed;
     if(on)t.querySelector(".qt").innerHTML=qualityPref==="lite"
-      ?"<b>Simplified boundaries.</b> You chose this in About the data."
+      ?"<b>Simplified boundaries.</b> Full detail is turned off."
       :`<b>Simplified boundaries</b> because ${esc(liteReason)}. Zoomed in this far, full detail would be sharper.`;
     t.classList.toggle("show",on);}
   function setQuality(q){qualityPref=q==="auto"?null:q;
     try{q==="auto"?localStorage.removeItem("quality"):localStorage.setItem("quality",q);}catch(_){}
     if(!isLite()){showQualityTip(false);if(selI>=0)loadDetail(feats[selI].properties.d||"");}
-    tipDismissed=false;scheduleLabels();}
+    tipDismissed=false;updateQBtn();scheduleLabels();}
   $("hqBtn").onclick=()=>setQuality("hq");
+  $("qBtn").onclick=()=>setQuality(isLite()?"hq":"lite");
   $("qtClose").onclick=()=>{tipDismissed=true;showQualityTip(false);};
   document.querySelectorAll('#about input[name="quality"]').forEach(r=>r.onchange=()=>{setQuality(r.value);syncQualityUI();});
+  updateQBtn();
   function syncQualityUI(){const v=qualityPref||"auto";
     document.querySelectorAll('#about input[name="quality"]').forEach(r=>r.checked=r.value===v);
     $("qualityNote").textContent=qualityPref?"":autoLite
