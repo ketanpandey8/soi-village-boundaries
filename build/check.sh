@@ -38,6 +38,19 @@ av=$(grep -o 'const DATA_V="[0-9]*"' build/app.html | grep -o '[0-9]*'); sv=$(gr
 [ -n "$av" ] && [ "$av" = "$sv" ] && ok "DATA_V matches in the app and dist/sw.js ($av)" || bad "DATA_V is $av in the app but $sv in dist/sw.js"
 node --check dist/sw.js && ok "service worker parses" || bad "dist/sw.js has a syntax error"
 
+# every message the app passes to L() has a Hindi translation in its HI table
+missing=$(python3 - <<'PY2'
+import re, json
+s = open("build/app.html").read()
+m = re.search(r"const HI=(\{.*?\});\n", s); hi = json.loads(m.group(1))
+s = s[:m.start()] + s[m.end():]                      # look for uses, not the table itself
+used = set(re.findall(r'L\("((?:[^"\\]|\\.)+)"', s))
+used |= {m for pair in re.findall(r'L\([^()]*?\?"([^"]+)":"([^"]+)"', s) for m in pair}
+print("; ".join(sorted(k for k in used if k not in hi)))
+PY2
+)
+[ -z "$missing" ] && ok "every L() message has Hindi" || bad "no Hindi for: $missing"
+
 # build scripts compile
 python3 -m py_compile build/*.py data/*.py && ok "python scripts compile" || bad "python scripts don't compile"
 
