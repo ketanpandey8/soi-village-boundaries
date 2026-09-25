@@ -1,0 +1,9 @@
+{
+  "name": "india-village-boundaries",
+  "private": true,
+  "description": "Survey of India village boundary explorer. No dependencies: the app is one HTML file.",
+  "scripts": {
+    "build": "cp build/app.html dist/index.html",
+    "check": "build/check.sh"
+  }
+}
