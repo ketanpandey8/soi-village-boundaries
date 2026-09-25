@@ -62,6 +62,18 @@ categories) with a button to highlight them. Field names vary between state file
 (`Vill_Cat` / `Vill_cat`, `Sub_dist` / `Subdist`, `DISTRICT`, Madhya Pradesh's
 `Villl_name`), so `build/make_geojson.py` matches them case-insensitively.
 
+## Embedding
+
+`/embed/<state>/<lgd>` (or `/embed/<state>`) is the map alone, with a link to the full site,
+for other sites' iframes. The village card's Embed button copies the code:
+
+```html
+<iframe src="https://indianvillage.4080studio.com/embed/goa/626847" width="600" height="450"
+  style="border:0" loading="lazy" title="Adcolna, South Goa village map"></iframe>
+```
+
+Embed pages are marked `noindex` and point to the real page as canonical.
+
 ## API
 
 Open to any site (CORS), cached at the edge for a day:

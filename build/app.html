@@ -132,6 +132,13 @@
 
   /* map */
   #stage{flex:1;position:relative;min-width:0;background:var(--map-sea)}
+  /* /embed/...: just the map, for other sites' iframes */
+  #app.embed #topbar,#app.embed #sidebar,#app.embed #locBtn,#app.embed #info .acts{display:none}
+  #embedLink{display:none;position:absolute;top:12px;left:12px;z-index:11;align-items:center;gap:.35rem;
+    padding:.35rem .65rem;font-size:.78rem;font-weight:600;color:var(--ink);text-decoration:none;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
+  #embedLink:hover{border-color:var(--accent);color:var(--accent)}
+  #app.embed #embedLink{display:flex}
   svg#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab;background:var(--map-sea)}
   svg#map.grabbing{cursor:grabbing}
   #land{fill:var(--map-bg)}
@@ -367,6 +374,7 @@
         <button class="dx" id="qtClose" aria-label="Dismiss">×</button>
       </div>
       <div id="toast" role="status" aria-live="polite"><span class="qt"></span><button class="dx" aria-label="Dismiss">×</button></div>
+      <a id="embedLink" target="_blank" rel="noopener">India Villages ↗</a>
       <div id="scalebar" aria-hidden="true"><span class="bar"></span><span class="txt"></span></div>
       <div class="cred">Data © Survey of India · National Geospatial Policy 2022</div>
       <svg id="labels" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -429,6 +437,9 @@
   // The live site routes by path (/goa/626863) so each link gets its own preview; opened as a
   // plain file or index.html (local dev) it falls back to #goa/626863.
   const PATHS=!/\.html$/.test(location.pathname)&&location.protocol!=="file:", ROOT=PATHS?"/":"";
+  // /embed/goa/626847 (or ?embed=1 in local dev): the map alone, for other sites' iframes
+  const EMBED=PATHS?/^\/embed(\/|$)/.test(location.pathname):/[?&]embed=1/.test(location.search);
+  if(EMBED)document.getElementById("app").classList.add("embed");
   const DATA_V="6";   // bump when dist/data is regenerated (busts CDN/browser cache)
 
   const svg=$("map"), world=$("world"), ctx=$("ctx"), scene=$("scene"), info=$("info"), statusEl=$("status");
@@ -545,8 +556,9 @@
       <dl><dt>Taluk</dt><dd>${p.s?esc(cap(p.s)):NR}</dd><dt>Area</dt><dd>${p.a!=null?nf(p.a)+" km²":NR}</dd>
       <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl><div class="nbrs"></div>`+
       `<div class="acts"><span class="dl">Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button></span>`+
-      (p.l?`<button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button>`:"")+`</div>`;
+      (p.l?`<button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button> <button class="linkbtn embedbtn">Embed</button>`:"")+`</div>`;
     const sh=info.querySelector(".share");if(sh)sh.onclick=()=>shareVillage(i);
+    const eb=info.querySelector(".embedbtn");if(eb)eb.onclick=()=>embedCode(i);
     info.querySelectorAll(".dl [data-fmt]").forEach(b=>b.onclick=()=>download([i],b.dataset.fmt));
     if(i===selI)showNeighbours(i);
     info.classList.add("show");wireClose();}
@@ -570,6 +582,11 @@
         b.onclick=()=>setSelect(j,true);b.onmouseenter=()=>hoverVillage(j);b.onmouseleave=()=>hoverVillage(-1);});
       const m=box.querySelector(".more");if(m)m.onclick=()=>render(true);};
     render(false);}
+  // an iframe for other sites, showing this village
+  async function embedCode(i){const p=feats[i].properties;
+    const code=`<iframe src="${location.origin}/embed/${curSlug}/${p.l}" width="600" height="450" style="border:0" loading="lazy" title="${esc((p.n||"Village "+p.l)+", "+cap(p.d))} village map"></iframe>`;
+    try{await navigator.clipboard.writeText(code);toast("Embed code copied. Paste it into your page's HTML.");}
+    catch(_){toast(code);}}
   // phones get the system share sheet; elsewhere the link is copied
   async function shareVillage(i){const p=feats[i].properties, url=location.href;
     const title=(p.n||"Village "+p.l)+(p.d?", "+cap(p.d):"");
@@ -593,9 +610,10 @@
   // State changes push a history entry (so Back returns to the previous view);
   // village selection replaces it (so the URL is shareable without flooding history).
   let curSlug=null, loadingSlug=null, loadSeq=0;
-  const curRoute=()=>decodeURIComponent(PATHS?location.pathname.slice(1).replace(/\/$/,""):location.hash.slice(1));
-  function setHash(h,push){if(curRoute()===h&&!(PATHS&&location.hash))return;
-    history[push?"pushState":"replaceState"](null,"",PATHS?"/"+h:h?"#"+h:location.pathname+location.search);}
+  const curRoute=()=>decodeURIComponent(PATHS?location.pathname.slice(1).replace(/^embed\/?/,"").replace(/\/$/,""):location.hash.slice(1));
+  function setHash(h,push){if(EMBED)$("embedLink").href=(PATHS?"/":"index.html#")+h;   // the full site, same view
+    if(curRoute()===h&&!(PATHS&&location.hash))return;
+    history[push?"pushState":"replaceState"](null,"",PATHS?(EMBED?"/embed/":"/")+h:h?"#"+h:location.pathname+location.search);}
   function syncHash(push){const l=selI>=0?feats[selI].properties.l:"";
     setHash(mode==="state"&&curSlug?curSlug+(l?"/"+l:""):"",push);}
   async function route(){

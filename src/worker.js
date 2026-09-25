@@ -5,7 +5,7 @@
 // Cache API every request streams the file out of R2 again (UP is ~41 MB raw). The
 // cache key is the full URL, so bumping ?v= in the app busts it.
 const SITE = "India Villages";
-const PAGE = /^\/([a-z-]+)(?:\/([^/]+))?\/?$/;
+const PAGE = /^\/(embed\/)?([a-z-]+)(?:\/([^/]+))?\/?$/;   // [/embed]/<state>[/<lgd>]
 
 export default {
   async fetch(request, env, ctx) {
@@ -57,7 +57,7 @@ export default {
     // village page get the app with that page's preview tags
     const m = url.pathname.match(PAGE);
     if (m && (request.method === "GET" || request.method === "HEAD")) {
-      const res = await page(env, url, m[1], m[2] && decodeURIComponent(m[2]));
+      const res = await page(env, url, m[2], m[3] && decodeURIComponent(m[3]), !!m[1]);
       if (res) return res;
     }
 
@@ -80,7 +80,7 @@ const cap = s => String(s || "").toLowerCase().replace(/\b\w/g, c => c.toUpperCa
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const num = n => Number(n).toLocaleString("en-IN");
 
-async function page(env, url, slug, lgd) {
+async function page(env, url, slug, lgd, embed) {
   const states = await r2json(env, "states.json");
   const st = states && states.find(s => s.slug === slug);
   if (!st) return null;
@@ -125,6 +125,8 @@ async function page(env, url, slug, lgd) {
     ["href", origin + path, 'link[rel="canonical"]'],
   ];
   let rw = new HTMLRewriter()
+    // embeds live on other sites: keep them out of search results, and point to the real page
+    .on('link[rel="canonical"]', { element: e => { if (embed) e.after('<meta name="robots" content="noindex">', { html: true }); } })
     .on("title", { element: e => e.setInnerContent(`${title} · ${SITE}`) })
     .on("#seo", { element: e => e.setInnerContent(body, { html: true }) });
   for (const [attr, v, sel] of tags) rw = rw.on(sel, { element: e => e.setAttribute(attr, v) });
