@@ -3,7 +3,8 @@
 Interactive explorer of the **Survey of India village boundary database**: all 27
 published states and UTs, 586,164 villages. Search any village in India by name or LGD code,
 find the village you're standing in, see a state's villages coloured by district, read each
-village's taluk, district, area, category and LGD code, share a link to it, and download
+village's taluk, district, area, category, LGD code and bordering villages, share a link to
+it, and download
 it or a whole district as GeoJSON or KML with every surveyed point. Live at
 **[indianvillage.4080studio.com](https://indianvillage.4080studio.com)**.
 
@@ -19,6 +20,9 @@ Data © Survey of India, used under the National Geospatial Policy 2022.
 - **Pages and previews**: the site routes by path (`/goa`, `/goa/626847`). For those paths
   the Worker serves the app with that state's or village's title, description and preview
   image (`dist/cards/`, drawn by `build/make_cards.py`), so shared links show what they point to.
+  It also writes a short text summary into the page (name, place, area, bordering villages
+  as links) for search engines and screen readers, and serves `/sitemap.xml` listing every
+  state and village page.
 - **Deploy**: a Cloudflare Worker (`wrangler.jsonc`) serving the static app and R2 data.
 
 ### Data layout and detail
@@ -43,6 +47,10 @@ The home screen's village search reads `dist/data/search/` (`build/make_search.p
 index split by the first two or three letters of the name, and by the first two digits of
 the LGD code, so each search fetches one small file.
 
+Bordering villages come from the full-detail boundaries (`build/make_pages.py`): two villages
+border each other when they share a stretch of surveyed boundary (at least two points).
+Survey of India's boundaries meet exactly, so this needs no tolerance.
+
 ### What the source leaves out
 
 The app shows the source as released. Blank fields read "not in source", and each state
@@ -64,6 +72,7 @@ python3 build/make_manifest.py  # state list with village counts
 python3 build/make_india.py     # dissolve state outlines + per-state stats -> dist/data/india.geojson
 python3 build/pack.py           # the smaller .packed.json files the app downloads
 python3 build/make_search.py    # all-India village search index
+python3 build/make_pages.py     # bordering villages, village page data, sitemaps
 python3 build/make_cards.py     # link preview images (needs Pillow), then commit dist/cards/
 python3 data/check_release.py --write   # record which SoI release this was built from
 ```
