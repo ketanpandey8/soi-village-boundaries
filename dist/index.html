@@ -13,6 +13,10 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://indianvillage.4080studio.com/">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0e7c86">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -686,7 +690,10 @@
     try{
       data=unpack(await fetchJSON(stateUrl,(got,total)=>{if(seq!==loadSeq)return;
         statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));}));
-    }catch(e){if(seq===loadSeq){loadingSlug=null;statusEl.textContent="Could not load "+meta.name+" ("+e.message+")";}
+    }catch(e){if(seq===loadSeq){loadingSlug=null;
+        statusEl.textContent=navigator.onLine===false||e instanceof TypeError     // no connection at all
+          ?`Couldn't reach the server. Offline, only states opened before on this device are available.`
+          :"Could not load "+meta.name+" ("+e.message+")";}
       return false;}
     if(seq!==loadSeq)return false;                          // user moved on while this was downloading
     statusEl.textContent="Drawing "+nf(data.features.length)+" villages…";
@@ -1334,6 +1341,10 @@
     const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
     const next=dark?"light":"dark";document.documentElement.setAttribute("data-theme",next);
     try{localStorage.setItem("theme",next);}catch(_){}};
+
+  // offline use: keeps the app and every state opened so far on the device (dist/sw.js)
+  if(PATHS&&!EMBED&&"serviceWorker" in navigator)
+    addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
 
   // ---------- boot ----------
   Promise.all([fetch(ROOT+"data/india.geojson?v="+DATA_V).then(r=>r.json()),

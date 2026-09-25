@@ -33,6 +33,11 @@ PY2
 console.log(JSON.stringify(JSON.parse(process.argv[1]).map(skel)))" "$names")
 [ "$py" = "$js" ] && ok "search sound key matches in Python and the app" || bad "search sound key differs: $py vs $js"
 
+# the service worker keeps map data per DATA_V, so it must match the app's
+av=$(grep -o 'const DATA_V="[0-9]*"' build/app.html | grep -o '[0-9]*'); sv=$(grep -o 'const DATA_V = "[0-9]*"' dist/sw.js | grep -o '[0-9]*')
+[ -n "$av" ] && [ "$av" = "$sv" ] && ok "DATA_V matches in the app and dist/sw.js ($av)" || bad "DATA_V is $av in the app but $sv in dist/sw.js"
+node --check dist/sw.js && ok "service worker parses" || bad "dist/sw.js has a syntax error"
+
 # build scripts compile
 python3 -m py_compile build/*.py data/*.py && ok "python scripts compile" || bad "python scripts don't compile"
 
