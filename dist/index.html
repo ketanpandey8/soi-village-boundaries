@@ -195,12 +195,14 @@
   #info dt{color:var(--muted)}
   #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
   #info dd.code{font-family:var(--mono);font-size:.8rem}
+  #info .sat{font-size:.76rem;text-decoration:none}
+  #info .embedbtn{font-size:.8rem}
   #info .nbrs{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:.8rem;line-height:1.5}
   #info .nbrs:empty{display:none}
   #info .nbrs .lbl{display:block;margin-bottom:2px}
   #info .nbrs .linkbtn{font-weight:500;font-size:.8rem}
   #info .nbrs .od{color:var(--muted)}
-  #info .acts{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  #info .acts{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.6rem;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
   .dl{font-size:.76rem;color:var(--muted)}
   .dl .linkbtn{font-size:.76rem}
   #distDl:empty{display:none}
@@ -559,7 +561,7 @@
       <span class="chip"><span class="dot" style="background:${distColor(p.d)}"></span>${p.d?esc(cap(p.d)):"District not in source"}</span>
       <dl><dt>Taluk</dt><dd>${p.s?esc(cap(p.s)):NR}</dd><dt>Area</dt><dd>${p.a!=null?nf(p.a)+" km²":NR}</dd>
       <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl><div class="nbrs"></div>`+
-      `<div class="acts"><span class="dl">Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button></span>`+
+      `<div class="acts"><a class="linkbtn sat" target="_blank" rel="noopener" href="${satUrl(feats[i].geometry)}">Satellite ↗</a><span class="dl">Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button></span>`+
       (p.l?`<button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button> <button class="linkbtn embedbtn">Embed</button>`:"")+`</div>`;
     const sh=info.querySelector(".share");if(sh)sh.onclick=()=>shareVillage(i);
     const eb=info.querySelector(".embedbtn");if(eb)eb.onclick=()=>embedCode(i);
@@ -586,6 +588,12 @@
         b.onclick=()=>setSelect(j,true);b.onmouseenter=()=>hoverVillage(j);b.onmouseleave=()=>hoverVillage(-1);});
       const m=box.querySelector(".more");if(m)m.onclick=()=>render(true);};
     render(false);}
+  // Satellite imagery can't be drawn here (Bhuvan and others need a licence to show it on
+  // another site), so this opens the village's middle in Google Maps' satellite view instead
+  function satUrl(g){let a=1e9,b=1e9,c=-1e9,d=-1e9;
+    eachRing(g,r=>r.forEach(([lo,la])=>{if(lo<a)a=lo;if(lo>c)c=lo;if(la<b)b=la;if(la>d)d=la;}));
+    const z=Math.max(12,Math.min(18,Math.round(Math.log2(360/Math.max(c-a,d-b,1e-4))-1)));
+    return `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&zoom=${z}&center=${((b+d)/2).toFixed(6)},${((a+c)/2).toFixed(6)}`;}
   // an iframe for other sites, showing this village
   async function embedCode(i){const p=feats[i].properties;
     const code=`<iframe src="${location.origin}/embed/${curSlug}/${p.l}" width="600" height="450" style="border:0" loading="lazy" title="${esc((p.n||"Village "+p.l)+", "+cap(p.d))} village map"></iframe>`;
