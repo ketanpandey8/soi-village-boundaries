@@ -1,0 +1,3 @@
+# Keep the GeoJSON (over 1 GB with full-detail districts) out of the static-asset upload. It is served
+# from the R2 bucket by src/worker.js instead.
+data/

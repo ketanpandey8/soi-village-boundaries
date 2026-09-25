@@ -1,0 +1,943 @@
+<meta charset="utf-8">
+<title>India Village Boundaries · Survey of India</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f6f3ee; --panel:#fffdf9; --ink:#1a1e22; --muted:#6b6862;
+    --line:#e4ddd2; --line-strong:#c9c0b1; --accent:#0e7c86; --accent-ink:#0a5157;
+    --map-bg:#eef0ec; --map-sea:#dce8ea; --boundary:#b9b3a7; --ctx:#cfc7b8;
+    --shadow:0 1px 2px rgba(40,34,24,.06),0 8px 24px rgba(40,34,24,.12);
+    --c-others:#9a938a;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#14171a; --panel:#1d2125; --ink:#ece7de; --muted:#9a948a;
+    --line:#2c3138; --line-strong:#3c434b; --accent:#4fc4ce; --accent-ink:#bfeef2;
+    --map-bg:#1a1f22; --map-sea:#17282b; --boundary:#4a5158; --ctx:#3a424a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.5); --c-others:#8f8880;}}
+  :root[data-theme="light"]{
+    --bg:#f6f3ee; --panel:#fffdf9; --ink:#1a1e22; --muted:#6b6862;
+    --line:#e4ddd2; --line-strong:#c9c0b1; --accent:#0e7c86; --accent-ink:#0a5157;
+    --map-bg:#eef0ec; --map-sea:#dce8ea; --boundary:#b9b3a7; --ctx:#cfc7b8;
+    --shadow:0 1px 2px rgba(40,34,24,.06),0 8px 24px rgba(40,34,24,.12); --c-others:#9a938a;}
+  :root[data-theme="dark"]{
+    --bg:#14171a; --panel:#1d2125; --ink:#ece7de; --muted:#9a948a;
+    --line:#2c3138; --line-strong:#3c434b; --accent:#4fc4ce; --accent-ink:#bfeef2;
+    --map-bg:#1a1f22; --map-sea:#17282b; --boundary:#4a5158; --ctx:#3a424a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.5); --c-others:#8f8880;}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overscroll-behavior:none}
+  body{font-family:var(--sans);color:var(--ink);background:var(--bg);
+    -webkit-font-smoothing:antialiased;overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100dvh}
+
+  /* top bar */
+  #topbar{flex:none;display:flex;align-items:center;gap:.7rem;padding:.55rem .9rem;
+    border-bottom:1px solid var(--line);background:var(--panel);z-index:30}
+  #menuBtn{display:none;width:34px;height:34px;border:1px solid var(--line);background:var(--bg);
+    color:var(--ink);border-radius:9px;cursor:pointer;place-items:center}
+  .ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  #topbar h1{font-weight:600;font-size:1rem;letter-spacing:-.005em;margin:0;white-space:nowrap}
+  #crumb{color:var(--muted);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #crumb b{color:var(--ink);font-weight:600}
+  #upBtn{display:none;align-items:center;gap:.2rem;height:34px;padding:0 .6rem 0 .35rem;border:1px solid var(--line);
+    background:var(--bg);color:var(--ink);border-radius:9px;font:inherit;font-size:.82rem;font-weight:500;cursor:pointer;flex:none}
+  #upBtn:hover{border-color:var(--accent);color:var(--accent)}
+  #aboutBtn{margin-left:auto;flex:none;height:34px;display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);background:var(--bg);color:var(--muted);
+    border-radius:9px;font:inherit;font-size:.76rem;padding:0 .7rem;cursor:pointer;white-space:nowrap}
+  #aboutBtn:hover{border-color:var(--accent);color:var(--accent)}
+  #aboutBtn .short{display:none}
+  #themeBtn{width:34px;height:34px;border:1px solid var(--line);background:var(--bg);color:var(--ink);
+    border-radius:9px;cursor:pointer;display:grid;place-items:center;flex:none}
+  #themeBtn:hover,#menuBtn:hover{border-color:var(--accent);color:var(--accent)}
+
+  #body{flex:1;display:flex;position:relative;min-height:0}
+
+  /* sidebar: a slightly deeper neutral than the content surface */
+  #sidebar{width:288px;flex:none;background:color-mix(in srgb,var(--panel) 93%,var(--ink) 7%);
+    border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;z-index:25}
+  .side-sec{padding:13px 13px 12px;display:flex;flex-direction:column;min-height:0}
+  .side-sec.grow{flex:1;overflow:hidden}
+  .side-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px}
+  .lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0}
+  .lbl b{color:var(--ink);font-weight:600}
+  .field{position:relative;flex:none}
+  .field input{width:100%;padding:.5rem .6rem .5rem 1.9rem;font:inherit;font-size:.88rem;color:var(--ink);
+    background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;outline:none}
+  .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .field input::placeholder{color:var(--muted)}
+  .field svg{position:absolute;left:.55rem;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2}
+  .list{margin-top:9px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;-webkit-overflow-scrolling:touch}
+  .row{display:flex;align-items:center;gap:.55rem;padding:.4rem .5rem;border-radius:8px;cursor:pointer;
+    user-select:none;font-size:.875rem;line-height:1.2;transition:background .12s}
+  .row:hover{background:var(--bg)}
+  .row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .row .sw{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
+  .row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .ct{font-family:var(--mono);font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
+  .row.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-ink);font-weight:600}
+  .row.active .ct{color:var(--accent-ink)}
+  .row.selrow{background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .row.nodata{cursor:default;opacity:.6}
+  .row.nodata:hover{background:transparent}
+  .ct.nodat{font-family:var(--sans);font-style:italic;font-size:.72rem}
+  .backbtn{display:flex;align-items:center;gap:.45rem;width:100%;padding:.5rem .65rem;font:inherit;font-size:.86rem;font-weight:500;
+    color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:9px;cursor:pointer;
+    margin-bottom:11px;transition:border-color .12s,color .12s}
+  .backbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .backbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #stateSec{display:none}
+  .note{flex:none;margin:10px 2px 0;font-size:.7rem;line-height:1.45;color:var(--muted)}
+
+  /* village search results replace the district list while a query is typed */
+  #resWrap{display:none;flex-direction:column;min-height:0;margin-top:9px}
+  #stateSec.searching #resWrap{display:flex}
+  #stateSec.searching #distHead,#stateSec.searching #distList{display:none}
+  .rsum{flex:none;font-size:.72rem;line-height:1.4;color:var(--muted);padding:0 2px 6px}
+  .rsum b{color:var(--ink);font-family:var(--mono);font-weight:600}
+  #villResults{overflow-y:auto;display:flex;flex-direction:column;gap:1px;min-height:0;-webkit-overflow-scrolling:touch}
+  .res{display:block;width:100%;text-align:left;padding:.42rem .55rem;border:none;border-radius:8px;
+    background:none;font:inherit;color:var(--ink);cursor:pointer}
+  .res.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+  .res .rn{display:block;font-size:.875rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .res .rn mark{background:none;color:var(--accent);font-weight:700}
+  .res .rm{display:flex;align-items:center;gap:.4rem;margin-top:1px;font-size:.74rem;color:var(--muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .res .rm .sw{width:8px;height:8px;border-radius:2px;flex:none}
+  .rempty{margin:4px 2px;font-size:.84rem;line-height:1.45;color:var(--muted)}
+  .linkbtn{border:none;background:none;padding:0;font:inherit;color:var(--accent);font-weight:600;cursor:pointer}
+
+  /* map */
+  #stage{flex:1;position:relative;min-width:0;background:var(--map-sea)}
+  svg#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab;background:var(--map-sea)}
+  svg#map.grabbing{cursor:grabbing}
+  #land{fill:var(--map-bg)}
+  /* village outlines fade in with zoom (--vo set from on-screen village density); off entirely
+     when too dense to read, so a big state shows clean district colour blocks */
+  path.dist{stroke:var(--boundary);stroke-width:.35;stroke-opacity:var(--vo,1);vector-effect:non-scaling-stroke;cursor:pointer}
+  #scene.nostroke path.dist{stroke:none}
+  path.dist.dim{opacity:.12}
+  path.vhi{fill:none;stroke:var(--ink);stroke-width:1.6;vector-effect:non-scaling-stroke;pointer-events:none}
+  /* selected village: panel-coloured halo under an accent outline + tint, readable on any district colour */
+  path.vselh{fill:none;stroke:var(--panel);stroke-width:6;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none}
+  path.vsel{fill:color-mix(in srgb,var(--accent) 30%,transparent);stroke:var(--accent);stroke-width:2.4;stroke-linejoin:round;
+    vector-effect:non-scaling-stroke;pointer-events:none}
+  path.vgap{fill:color-mix(in srgb,var(--ink) 55%,transparent);stroke:var(--ink);stroke-width:.8;vector-effect:non-scaling-stroke;pointer-events:none}
+  path.state{stroke:var(--panel);stroke-width:1.1;vector-effect:non-scaling-stroke;cursor:pointer;transition:opacity .12s}
+  path.state:hover{stroke:var(--ink);stroke-width:1.6}
+  path.state.hl{stroke:var(--ink);stroke-width:2.6;filter:brightness(1.12)}
+  path.state.nod{stroke:var(--line-strong);stroke-dasharray:3.5 2.5;cursor:default}
+  path.state.nod:hover{stroke:var(--muted)}
+  path.state.nod.hl{filter:brightness(1.06)}
+  path.ctx{fill:transparent;stroke:var(--ctx);stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer;pointer-events:all}
+  path.ctx.here{stroke:var(--boundary)}
+  path.ctx.hl{stroke:var(--accent);stroke-width:2.4;fill:color-mix(in srgb,var(--accent) 12%,transparent)}
+
+  #tools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;z-index:10}
+  #tools button{width:34px;height:34px;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+    border-radius:9px;box-shadow:var(--shadow);cursor:pointer;font-size:1rem;display:grid;place-items:center;line-height:1;
+    transition:border-color .12s,color .12s}
+  #tools button:hover{border-color:var(--accent);color:var(--accent)}
+  #tools button:active{transform:translateY(1px)}
+  #tools button:focus-visible,#themeBtn:focus-visible,#menuBtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  #info{position:absolute;left:12px;bottom:12px;width:262px;max-width:calc(100% - 24px);
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
+    padding:13px;display:none;z-index:15}
+  #info.show{display:block}
+  #info .close{position:absolute;top:9px;right:10px;border:none;background:none;color:var(--muted);
+    font-size:1rem;cursor:pointer;line-height:1;padding:2px}
+  #info .vname{font-size:1.08rem;font-weight:600;margin:0 4px 3px 0;text-wrap:balance}
+  #info .chip{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;padding:.2rem .5rem;border-radius:999px;
+    background:var(--bg);border:1px solid var(--line);margin-bottom:9px}
+  #info .chip .dot{width:8px;height:8px;border-radius:50%}
+  #info dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:.32rem .8rem;font-size:.84rem}
+  #info dt{color:var(--muted)}
+  #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+  #info dd.code{font-family:var(--mono);font-size:.8rem}
+  #info .go{margin-top:10px;color:var(--accent);font-size:.8rem;font-weight:600}
+  #info .empty{margin:2px 0 0;font-size:.82rem;line-height:1.45;color:var(--muted)}
+  #info .gapline{margin:9px 0 0;padding-top:8px;border-top:1px solid var(--line);font-size:.76rem;line-height:1.45;color:var(--muted)}
+  .nr{color:var(--muted);font-style:italic;font-family:var(--sans);font-weight:400}
+  #info .vname .nr{font-size:.95rem}
+
+  /* what the source leaves out, per state */
+  #gapBox{flex:none;margin-top:10px;padding:9px 10px;border:1px dashed var(--line-strong);border-radius:9px;
+    font-size:.76rem;line-height:1.4;color:var(--muted)}
+  #gapBox:empty,#stateSec.searching #gapBox{display:none}
+  #gapBox .gh{font-size:.64rem;text-transform:uppercase;letter-spacing:.1em;margin:0 0 6px}
+  #gapBox ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+  #gapBox li{display:flex;gap:.5rem;align-items:baseline}
+  #gapBox li>span{flex:1}
+  #gapBox b{color:var(--ink);font-family:var(--mono);font-weight:600}
+  #gapBox .linkbtn{font-size:.74rem;flex:none}
+  #gapBox .linkbtn[aria-pressed="true"]{color:var(--ink);text-decoration:underline}
+  #gapBox .ok{color:var(--ink)}
+
+  /* about the data */
+  #about{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 48px);border:1px solid var(--line);border-radius:14px;
+    background:var(--panel);color:var(--ink);box-shadow:var(--shadow);padding:20px 22px 18px;font-size:.9rem;line-height:1.55}
+  #about::backdrop{background:rgba(0,0,0,.45)}
+  #about h2{font-size:1.15rem;font-weight:600;margin:0 2rem .5rem 0}
+  #about h3{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:1.1rem 0 .3rem}
+  #about p,#about ul{margin:.3rem 0}
+  #about ul{padding-left:1.1rem}
+  #about li{margin:.15rem 0}
+  #about a{color:var(--accent)}
+  #about .x{position:absolute;top:12px;right:12px;width:32px;height:32px;border:1px solid var(--line);background:var(--bg);
+    color:var(--ink);border-radius:9px;cursor:pointer;font-size:1rem}
+
+  /* map labels: a screen-space SVG layer positioned from the world transform, so text stays the
+     same size at any zoom. A thin outline in the panel colour (drawn under the fill) keeps
+     names legible on any district colour. */
+  #labels{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:4}
+  /* district and state fills are the same mid-tones in both themes, so labels on them are dark
+     in both; only the no-data states (darkened in dark mode) follow the theme */
+  #labels text{font-family:var(--sans);font-size:12px;font-weight:500;fill:#1a1e22;
+    stroke:#fffdf9;stroke-width:1.6px;stroke-opacity:.45;stroke-linejoin:round;paint-order:stroke;
+    text-anchor:middle;dominant-baseline:central;text-rendering:geometricPrecision}
+  #labels .st{font-size:13.5px;font-weight:600}
+  #labels .st.nod{fill:var(--muted);stroke:var(--panel);stroke-opacity:.8;font-weight:500}
+  #labels .di{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  #labels .pin{fill:none;stroke:var(--accent);stroke-width:2.5px;transform-box:fill-box;transform-origin:center;
+    animation:ping 1.8s ease-out infinite}
+  @keyframes ping{0%{transform:scale(.55);opacity:1}70%{opacity:.9}100%{transform:scale(1.25);opacity:0}}
+  @media (prefers-reduced-motion:reduce){#labels .pin{animation:none}}
+
+  #detailChip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:12;display:none;align-items:center;gap:.45rem;
+    font-size:.76rem;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:.3rem .7rem;box-shadow:var(--shadow);white-space:nowrap}
+  #detailChip.show{display:flex}
+  #scalebar{position:absolute;right:12px;bottom:30px;z-index:5;display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+    font-size:.68rem;color:var(--ink);font-variant-numeric:tabular-nums;pointer-events:none}
+  #scalebar .bar{height:5px;border:1.5px solid var(--ink);border-top:none;background:color-mix(in srgb,var(--panel) 70%,transparent)}
+  #scalebar .txt{padding:0 3px;border-radius:4px;background:color-mix(in srgb,var(--panel) 78%,transparent)}
+  #detailChip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1s ease-in-out infinite}
+  #status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.88rem;color:var(--ink);
+    background:var(--panel);border:1px solid var(--line);padding:.6rem .95rem;border-radius:10px;box-shadow:var(--shadow);
+    display:none;align-items:center;gap:.55rem;z-index:20}
+  #status.show{display:flex}
+  #status::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent);
+    animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+  .cred{position:absolute;bottom:8px;right:12px;font-size:.66rem;color:var(--muted);
+    background:color-mix(in srgb,var(--panel) 78%,transparent);padding:2px 7px;border-radius:6px;z-index:5}
+  #backdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:24}
+
+  @media (max-width:860px){
+    #menuBtn{display:grid}
+    #app.in-state #upBtn{display:inline-flex}
+    #app.in-state #topbar h1{display:none}
+    #crumb .meta{display:none}
+    #topbar{gap:.5rem;padding:.55rem .7rem}
+    #sidebar{position:absolute;inset:0 auto 0 0;height:100%;transform:translateX(-100%);
+      transition:transform .22s ease;box-shadow:var(--shadow);width:min(300px,86vw)}
+    #app.nav-open #sidebar{transform:translateX(0)}
+    #app.nav-open #backdrop{display:block}
+    #aboutBtn{padding:0;width:34px;justify-content:center}
+    #aboutBtn .long{display:none}
+    #aboutBtn .short{display:inline}
+    #info{width:calc(100% - 24px);left:12px;right:12px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="app">
+  <div id="topbar">
+    <button id="menuBtn" aria-label="States and districts" aria-expanded="false" aria-controls="sidebar"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <button id="upBtn" aria-label="Back to all of India"><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>India</button>
+    <h1>India Villages</h1>
+    <span id="crumb"></span>
+    <button id="aboutBtn" aria-haspopup="dialog" aria-label="About the data"><span class="long" aria-hidden="true">About the data</span><svg class="ic short" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
+    <button id="themeBtn" title="Light or dark" aria-label="Toggle theme"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg></button>
+  </div>
+
+  <div id="body">
+    <aside id="sidebar">
+      <div class="side-sec grow" id="statesSec">
+        <div class="side-head"><div class="lbl"><b id="stateCount"></b> States &amp; UTs</div></div>
+        <div class="field">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input id="stateSearch" type="text" placeholder="Find a state…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="list" id="stateList"></div>
+        <p class="note">27 states and UTs have village data. The Survey of India hasn't released the rest yet.</p>
+      </div>
+      <div class="side-sec grow" id="stateSec">
+        <button class="backbtn" id="backBtn"><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>All states</button>
+        <div class="field">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input id="villSearch" type="search" placeholder="Search a village or taluk…" autocomplete="off" spellcheck="false"
+            role="combobox" aria-controls="villResults" aria-expanded="false" aria-autocomplete="list">
+        </div>
+        <div id="resWrap">
+          <div class="rsum" id="resSum" role="status" aria-live="polite"></div>
+          <div id="villResults" role="listbox" aria-label="Matching villages"></div>
+        </div>
+        <div class="side-head" id="distHead" style="margin-top:11px"><div class="lbl" id="distLbl">Districts</div></div>
+        <div class="list" id="distList"></div>
+        <div id="gapBox"></div>
+      </div>
+    </aside>
+
+    <div id="stage">
+      <svg id="map" xmlns="http://www.w3.org/2000/svg">
+        <rect id="land" x="-900000" y="-900000" width="1800000" height="1800000"/>
+        <g id="world"><g id="ctx"></g><g id="scene"></g></g>
+      </svg>
+      <div id="tools">
+        <button id="zin" aria-label="Zoom in"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button id="zout" aria-label="Zoom out"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <button id="zreset" aria-label="Fit to view" title="Fit to view"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+      <div id="info"></div>
+      <div id="status" class="show">Loading India…</div>
+      <div id="detailChip" role="status" aria-live="polite"></div>
+      <div id="scalebar" aria-hidden="true"><span class="bar"></span><span class="txt"></span></div>
+      <div class="cred">Data © Survey of India · National Geospatial Policy 2022</div>
+      <svg id="labels" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="backdrop"></div>
+    </div>
+  </div>
+</div>
+
+<dialog id="about" aria-labelledby="aboutTitle">
+  <button class="x" id="aboutClose" aria-label="Close">×</button>
+  <h2 id="aboutTitle">About the data</h2>
+  <p>Boundaries and village details come from the Survey of India
+    <a href="https://surveyofindia.gov.in/pages/village-boundary-data-base-of-entire-india" target="_blank" rel="noopener">village boundary database</a>,
+    released under the National Geospatial Policy 2022. The map shows that data as released. Nothing is filled in or estimated.</p>
+  <h3>Missing data</h3>
+  <ul>
+    <li><span id="aboutReleased"></span></li>
+    <li>In the released states, some villages have no name, LGD code, taluk or category in the source. Each state lists its gaps below the district list, and blank fields show as <span class="nr">not in source</span>.</li>
+    <li>Some district names are spelled more than one way in the source, so they appear as separate districts.</li>
+  </ul>
+  <h3>Notes</h3>
+  <ul>
+    <li>Boundaries are simplified so large states load quickly. Use them for reference, not for legal or survey work.</li>
+    <li>The LGD code is the government's village identifier. It links this map to Census and other datasets. You can search by LGD code to find villages that have no name.</li>
+    <li>Released states use Survey of India boundaries. The grey outlines of unreleased states come from GADM, a third-party dataset, and are shown only for context. Their borders may not match India's official boundary.</li>
+  </ul>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+  try{const t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(_){}
+  const PALETTE=["#6ba368","#e0a13c","#d9663f","#3d94a6","#8a6fb0","#c0577f","#4d9670",
+    "#c99a3c","#5b8def","#d17c4a","#57a99a","#b0563f","#7aa03f","#9a6ac0","#3f9fb0","#c77d9e"];
+  // Categories as the source spells them, with only unambiguous abbreviations and typos expanded
+  // (Odisha "R", Karnataka "Rul"/"Oth"/"Urb"/"Purb" ...). Placeholders ("Na", "<null>", an LGD code
+  // typed into the category field) count as missing. Unusual real values ("Doob village") are kept.
+  const CAT_FIX={r:"Rural",rul:"Rural",rral:"Rural",o:"Others",oth:"Others",other:"Others",urb:"Urban",
+    fu:"Fully urban",purb:"Partly urban","party urban":"Partly urban","partially urban":"Partly urban",
+    na:"","<null>":""};
+  function normCat(c){if(c==null)return null;const k=String(c).replace(/_/g," ").replace(/\s+/g," ").trim().toLowerCase();
+    if(k in CAT_FIX)return CAT_FIX[k];if(/^\d+$/.test(k))return "";return k.charAt(0).toUpperCase()+k.slice(1);}
+  const catLabel=c=>normCat(c)||"";
+  const NR='<span class="nr">not in source</span>';
+  const merc=(lo,la)=>[lo,Math.log(Math.tan(Math.PI/4+la*Math.PI/360))*180/Math.PI];
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const cap=s=>String(s||"").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+  const nf=n=>n.toLocaleString();
+  const $=id=>document.getElementById(id);
+  const NS="http://www.w3.org/2000/svg", PW=1000, pad=26;
+  const DATA_V="5";   // bump when dist/data is regenerated (busts CDN/browser cache)
+
+  const svg=$("map"), world=$("world"), ctx=$("ctx"), scene=$("scene"), info=$("info"), statusEl=$("status");
+  let INDIA=[], STATES=[];                 // overview outlines + manifest
+  let mode="overview", feats=[], distColors={}, activeDist=null, catDefault=null;
+  // full-detail district files (see build_all.py): name -> file, simplification tolerance of the
+  // display file, and per-district indices / path elements / load state
+  let detailFiles=null, dispTol=0, distIdx={}, distEls={}, distBB={}, detailState={}, detailPending=0;
+  let selI=-1, hoverI=-1, hoverEl=null, selEl=null, selH=null, gapEl=null;          // village hover/select overlays
+  let gGN=1,gMinLon=0,gMinLat=0,gCellLon=1,gCellLat=1,gcells=[];   // spatial hit-test grid
+  let PH=800,pMinX=0,pMinY=0,pScale=1, k=1,tx=0,ty=0;
+  const px=x=>pad+(x-pMinX)*pScale, py=y=>PH-pad-(y-pMinY)*pScale;
+  const distColor=n=>distColors[n]||"var(--c-others)";
+  // screen point -> village index (point-in-polygon over a grid bucket)
+  const invMercLat=my=>(2*Math.atan(Math.exp(my*Math.PI/180))-Math.PI/2)*180/Math.PI;
+  function screenLonLat(cx,cy){const p=svg.createSVGPoint();p.x=cx;p.y=cy;
+    const q=p.matrixTransform(world.getScreenCTM().inverse());
+    return [pMinX+(q.x-pad)/pScale, invMercLat(pMinY+(PH-pad-q.y)/pScale)];}
+  function inRing(x,y,r){let ins=false;
+    for(let i=0,j=r.length-1;i<r.length;j=i++){const xi=r[i][0],yi=r[i][1],xj=r[j][0],yj=r[j][1];
+      if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))ins=!ins;}return ins;}
+  function inFeature(x,y,g){const ps=g.type==="Polygon"?[g.coordinates]:g.coordinates;
+    for(const poly of ps){if(inRing(x,y,poly[0])){let hole=false;
+      for(let h=1;h<poly.length;h++)if(inRing(x,y,poly[h])){hole=true;break;}
+      if(!hole)return true;}}return false;}
+  function hitTest(lon,lat){
+    const cx=Math.floor((lon-gMinLon)/gCellLon), cy=Math.floor((lat-gMinLat)/gCellLat);
+    if(cx<0||cy<0||cx>=gGN||cy>=gGN)return -1;
+    const cand=gcells[cy*gGN+cx]; if(!cand)return -1;
+    for(const i of cand)if(inFeature(lon,lat,feats[i].geometry))return i;
+    return -1;}
+
+  function eachRing(g,f){const t=g.type,c=g.coordinates;
+    if(t==="Polygon")c.forEach(f);else if(t==="MultiPolygon")c.forEach(p=>p.forEach(f));}
+  function pathFor(g){let d="";eachRing(g,r=>{r.forEach(([lo,la],i)=>{const[x,y]=merc(lo,la);
+    d+=(i?"L":"M")+px(x).toFixed(1)+" "+py(y).toFixed(1);});d+="Z";});return d;}
+  function mercBBox(fs){let a=1e9,b=1e9,c=-1e9,d=-1e9;
+    fs.forEach(f=>eachRing(f.geometry,r=>r.forEach(([lo,la])=>{const[x,y]=merc(lo,la);
+      if(x<a)a=x;if(x>c)c=x;if(y<b)b=y;if(y>d)d=y;})));return[a,b,c,d];}
+  function fitTo(fs){const[a,b,c,d]=mercBBox(fs);pMinX=a;pMinY=b;
+    pScale=(PW-2*pad)/(c-a);PH=(d-b)*pScale+2*pad;svg.setAttribute("viewBox",`0 0 ${PW} ${PH.toFixed(1)}`);}
+
+  // ---------- pan / zoom (wheel + buttons + touch pinch) ----------
+  const apply=()=>{world.setAttribute("transform",`translate(${tx} ${ty}) scale(${k})`);outlineFade();scheduleLabels();};
+  // villages per megapixel on screen: outlines fully on below ~7k, gone above ~20k
+  let lastVo=-1;
+  function outlineFade(){if(mode!=="state")return;
+    const mpx=Math.max(.05,svg.clientWidth*svg.clientHeight/1e6), d=feats.length/(k*k)/mpx;
+    const vo=Math.round(Math.max(0,Math.min(1,(20000-d)/13000))*20)/20;
+    if(vo===lastVo)return;lastVo=vo;
+    scene.style.setProperty("--vo",vo);scene.classList.toggle("nostroke",vo===0);}
+  addEventListener("resize",()=>{lastVo=-1;outlineFade();scheduleLabels();});
+  function clamp(){tx=Math.min(PW*.6,Math.max(PW*.4-PW*k,tx));ty=Math.min(PH*.6,Math.max(PH*.4-PH*k,ty));}
+  function zoomAt(cx,cy,f){const nk=Math.min(80,Math.max(1,k*f)),r=nk/k;
+    tx=cx-(cx-tx)*r;ty=cy-(cy-ty)*r;k=nk;clamp();apply();}
+  const sp=svg.createSVGPoint();
+  function toSVG(cx,cy){sp.x=cx;sp.y=cy;return sp.matrixTransform(svg.getScreenCTM().inverse());}
+  svg.addEventListener("wheel",e=>{e.preventDefault();let dy=e.deltaY;
+    if(e.deltaMode===1)dy*=16;else if(e.deltaMode===2)dy*=400;dy=Math.max(-60,Math.min(60,dy));
+    const p=toSVG(e.clientX,e.clientY);zoomAt(p.x,p.y,Math.exp(-dy*0.0022));},{passive:false});
+
+  const ptrs=new Map(); let pan=null, pinch=null;
+  svg.addEventListener("pointerdown",e=>{ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs.size===1){pan={sx:e.clientX,sy:e.clientY,tx,ty,moved:0};svg.classList.add("grabbing");}
+    else if(ptrs.size===2){pan=null;pinch=null;}
+    try{svg.setPointerCapture(e.pointerId);}catch(_){}});
+  svg.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId))return;
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const pts=[...ptrs.values()];
+    if(pts.length>=2){
+      const [p1,p2]=pts, dist=Math.hypot(p1.x-p2.x,p1.y-p2.y);
+      const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+      if(pinch){const a=toSVG(mx,my);
+        const s=svg.viewBox.baseVal.width/svg.clientWidth;
+        tx+=(mx-pinch.mx)*s;ty+=(my-pinch.my)*s;           // two-finger pan
+        zoomAt(a.x,a.y,dist/pinch.dist);}                   // pinch scale about midpoint
+      pinch={dist,mx,my};
+    }else if(pan){const s=svg.viewBox.baseVal.width/svg.clientWidth;
+      pan.moved+=Math.abs(e.clientX-pan.sx)+Math.abs(e.clientY-pan.sy);
+      tx=pan.tx+(e.clientX-pan.sx)*s;ty=pan.ty+(e.clientY-pan.sy)*s;clamp();apply();}});
+  function up(e){
+    const wasSingle=ptrs.size===1, moved=pan?pan.moved:99, cx=e.clientX, cy=e.clientY;
+    ptrs.delete(e.pointerId); if(ptrs.size<2)pinch=null;
+    if(ptrs.size===0){svg.classList.remove("grabbing");
+      if(wasSingle&&moved<=6)handleTap(cx,cy);          // a tap, not a drag
+      pan=null;
+    }else if(ptrs.size===1){const p=[...ptrs.values()][0];pan={sx:p.x,sy:p.y,tx,ty,moved:99};}}
+  // pointer capture makes the SVG the click target, so hit-test the point ourselves
+  function selPath(d){if(selEl){selEl.setAttribute("d",d);selH.setAttribute("d",d);}}
+  function setSelect(i,zoom){selI=i;selPath(pathFor(feats[i].geometry));cardVillage(i);loadDetail(feats[i].properties.d||"");
+    if(zoom)zoomToFeature(i);syncHash();scheduleLabels();}
+  function clearSelect(){selI=-1;selPath("");info.classList.remove("show");syncHash();scheduleLabels();}
+  function selectVillage(i){if(i===selI)clearSelect();else setSelect(i);}
+  function handleTap(cx,cy){
+    if(mode==="overview"){const el=document.elementFromPoint(cx,cy);
+      if(el&&el.__s!=null)enterState(INDIA[el.__s].properties.slug);return;}
+    const [lon,lat]=screenLonLat(cx,cy); const i=hitTest(lon,lat);
+    if(i>=0){selectVillage(i);return;}
+    const el=document.elementFromPoint(cx,cy);            // tapped a neighbour's context outline
+    if(el&&el.__s!=null)enterState(INDIA[el.__s].properties.slug);}
+  svg.addEventListener("pointerup",up);svg.addEventListener("pointercancel",up);
+  $("zin").onclick=()=>zoomAt(PW/2,PH/2,1.4);
+  $("zout").onclick=()=>zoomAt(PW/2,PH/2,1/1.4);
+  $("zreset").onclick=()=>{k=1;tx=0;ty=0;apply();};
+
+  // ---------- info card ----------
+  // anything the source leaves blank says so, rather than showing a dash or a guess
+  function cardVillage(i){const p=feats[i].properties;
+    const c=normCat("c" in p?p.c:catDefault);           // null = this file predates categories
+    const catRow=c==null?"":`<dt>Category</dt><dd>${c?esc(catLabel(c)):NR}</dd>`;
+    info.innerHTML=`<button class="close" aria-label="Close">×</button>
+      <p class="vname">${p.n?esc(p.n):'<span class="nr">Name not in source</span>'}</p>
+      <span class="chip"><span class="dot" style="background:${distColor(p.d)}"></span>${p.d?esc(cap(p.d)):"District not in source"}</span>
+      <dl><dt>Taluk</dt><dd>${p.s?esc(cap(p.s)):NR}</dd><dt>Area</dt><dd>${p.a!=null?nf(p.a)+" km²":NR}</dd>
+      <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl>`;
+    info.classList.add("show");wireClose();}
+  function cardState(s){const p=INDIA[s].properties;
+    info.innerHTML=`<button class="close" aria-label="Close">×</button>
+      <p class="vname">${esc(p.name)}</p>`+(p.villages
+        ?`<dl><dt>Villages</dt><dd>${nf(p.villages)}</dd><dt>Districts</dt><dd>${p.districts}</dd>
+           <dt>Taluks</dt><dd>${p.taluks}</dd></dl>${gapLine(p)}<div class="go">Click to see its villages</div>`
+        :`<p class="empty">No village data. The Survey of India hasn't released this one yet.</p>`);
+    info.classList.add("show");wireClose();}
+  function gapLine(p){if(p.noName==null)return "";
+    const bits=[];if(p.noName)bits.push(nf(p.noName)+" unnamed");if(p.noLgd)bits.push(nf(p.noLgd)+" without an LGD code");
+    return `<p class="gapline">${bits.length?"Gaps in source: "+bits.join(" · "):"Every village has a name and LGD code in the source."}</p>`;}
+  function wireClose(){info.querySelector(".close").onclick=()=>{
+    if(mode==="state")clearSelect();else info.classList.remove("show");};}
+
+  // ---------- URL: #<state-slug>[/<village LGD code>] ----------
+  // State changes push a history entry (so Back returns to the previous view);
+  // village selection replaces it (so the URL is shareable without flooding history).
+  let curSlug=null, loadingSlug=null, loadSeq=0;
+  function setHash(h,push){if(location.hash.slice(1)===h)return;
+    history[push?"pushState":"replaceState"](null,"",h?"#"+h:location.pathname+location.search);}
+  function syncHash(push){const l=selI>=0?feats[selI].properties.l:"";
+    setHash(mode==="state"&&curSlug?curSlug+(l?"/"+l:""):"",push);}
+  async function route(){
+    const [slug,lgd]=decodeURIComponent(location.hash.slice(1)).split("/");
+    if(!slug||!STATES.some(s=>s.slug===slug&&s.villages)){
+      if(mode!=="overview"||!ctx.firstChild)drawOverview(false);else setHash("",false);return;}
+    if(slug===loadingSlug)return;                          // already on its way
+    if(slug!==curSlug||mode!=="state"){if(!await enterState(slug,false))return;}
+    const i=lgd?feats.findIndex(f=>f.properties.l===lgd):-1;
+    if(i>=0){if(i!==selI)setSelect(i,true);}else if(selI>=0||lgd)clearSelect();}
+  window.addEventListener("popstate",route);
+  window.addEventListener("hashchange",route);
+
+  // ---------- overview ----------
+  function drawOverview(push){
+    loadSeq++;loadingSlug=null;statusEl.classList.remove("show");   // cancel any state still loading
+    detailPending=0;detailChip();
+    mode="overview";curSlug=null;feats=[];scene.innerHTML="";activeDist=null;selI=-1;hoverI=-1;
+    $("crumb").innerHTML=`<b>All of India</b><span class="meta"> · ${STATES.filter(s=>s.villages).length} states with village data</span>`;
+    $("app").classList.remove("in-state");
+    $("stateSec").style.display="none";$("statesSec").style.display="flex";info.classList.remove("show");
+    setHash("",push);
+    fitTo(INDIA);if(!stateCol)colourStates();
+    const frag=document.createDocumentFragment();
+    INDIA.forEach((f,s)=>{const el=document.createElementNS(NS,"path");
+      el.setAttribute("d",pathFor(f.geometry));
+      el.setAttribute("class","state"+(f.properties.villages?"":" nod"));
+      el.dataset.slug=f.properties.slug;el.__s=s;
+      const col=stateCol[s];                       // colour every state; no-data ones muted + dashed
+      el.style.fill=f.properties.villages?col:`color-mix(in srgb,${col} 55%,var(--map-bg))`;
+      frag.appendChild(el);});
+    ctx.innerHTML="";ctx.appendChild(frag);
+    computeStateLabs();
+    k=1;tx=0;ty=0;apply();
+    markActive(null);
+  }
+
+  // ---------- a state ----------
+  // fetch + parse JSON, reporting bytes as they arrive. The Worker sends x-raw-size (R2 object
+  // size) because a compressed response's content-length doesn't match the decoded byte count.
+  async function fetchJSON(url,onProg){
+    const r=await fetch(url);if(!r.ok)throw new Error("HTTP "+r.status);
+    const total=+r.headers.get("x-raw-size")||(!r.headers.get("content-encoding")&&+r.headers.get("content-length"))||0;
+    if(!r.body)return r.json();
+    const rd=r.body.getReader(),parts=[];let got=0;
+    for(;;){const{done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;onProg(got,total);}
+    const buf=new Uint8Array(got);let o=0;for(const p of parts){buf.set(p,o);o+=p.length;}
+    return JSON.parse(new TextDecoder().decode(buf));}
+  const mb=b=>(b/1048576).toFixed(b<10485760?1:0)+" MB";
+  const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+  async function enterState(slug,push=true){
+    const meta=STATES.find(s=>s.slug===slug);if(!meta)return false;
+    if(!meta.villages){cardState(INDIA.findIndex(f=>f.properties.slug===slug));return false;}  // no data yet
+    if(slug===loadingSlug)return false;
+    const seq=++loadSeq;loadingSlug=slug;detailPending=0;detailChip();
+    const label="Loading "+meta.name+"…";
+    statusEl.textContent=label;statusEl.classList.add("show");
+    if(window.innerWidth<=860)setNav(false);
+    let data;
+    try{
+      data=await fetchJSON("data/"+slug+".geojson?v="+DATA_V,(got,total)=>{if(seq!==loadSeq)return;
+        statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));});
+    }catch(e){if(seq===loadSeq){loadingSlug=null;statusEl.textContent="Could not load "+meta.name+" ("+e.message+")";}
+      return false;}
+    if(seq!==loadSeq)return false;                          // user moved on while this was downloading
+    statusEl.textContent="Drawing "+nf(data.features.length)+" villages…";
+    await nextFrame();                                      // let the status paint before the heavy work
+    if(seq!==loadSeq)return false;
+    feats=data.features;
+    feats.forEach(f=>{const p=f.properties;f._n=(p.n||"").toLowerCase();
+      f._q=f._n+" "+(p.s||"").toLowerCase()+" "+(p.d||"").toLowerCase()+" "+(p.l||"");});
+    catDefault=(data.meta&&data.meta.catDefault)||null;
+    detailFiles=(data.meta&&data.meta.detail)||null;dispTol=(data.meta&&data.meta.dispTol)||0;
+    detailState={};distIdx={};distEls={};
+    mode="state";curSlug=slug;loadingSlug=null;
+    activeDist=null;villSearch.value="";runSearch();selI=-1;hoverI=-1;info.classList.remove("show");
+    syncHash(push);
+    fitTo(feats);
+    // context: all state outlines (faint), clickable to switch
+    const cf=document.createDocumentFragment();
+    INDIA.forEach((f,s)=>{const el=document.createElementNS(NS,"path");
+      el.setAttribute("d",pathFor(f.geometry));el.dataset.slug=f.properties.slug;
+      el.setAttribute("class","ctx"+(f.properties.slug===slug?" here":""));el.__s=s;cf.appendChild(el);});
+    ctx.innerHTML="";ctx.appendChild(cf);
+    // tally districts; build ONE merged path per district (each village stays a sub-path,
+    // so boundaries and colours look identical): about 75 nodes instead of 100k+
+    const dcount={},tset=new Set(),dPath={};
+    feats.forEach(f=>{const p=f.properties;const d=p.d||"";
+      dcount[d]=(dcount[d]||0)+1;if(p.s)tset.add(p.s);(dPath[d]||(dPath[d]=[])).push(pathFor(f.geometry));});
+    feats.forEach((f,i)=>{const d=f.properties.d||"";(distIdx[d]||(distIdx[d]=[])).push(i);});
+    const dists=Object.keys(dcount).sort();
+    buildGrid();colourDistricts(dists);lastVo=-1;
+    const vf=document.createDocumentFragment();
+    dists.forEach(n=>{const el=document.createElementNS(NS,"path");
+      el.setAttribute("d",dPath[n].join(""));el.setAttribute("class","dist");
+      el.dataset.d=n;el.style.fill=distColor(n);vf.appendChild(el);distEls[n]=el;});
+    const mk=c=>{const el=document.createElementNS(NS,"path");el.setAttribute("class",c);vf.appendChild(el);return el;};
+    gapEl=mk("vgap");hoverEl=mk("vhi");selH=mk("vselh");selEl=mk("vsel");
+    scene.innerHTML="";scene.appendChild(vf);
+    computeDistrictLabs(dists);buildGapBox(slug);
+    k=1;tx=0;ty=0;apply();
+    // sidebar district list
+    $("crumb").innerHTML=`<b>${esc(meta.name)}</b><span class="meta"> · ${nf(feats.length)} villages · ${dists.length} districts · ${tset.size} taluks</span>`;
+    $("app").classList.add("in-state");
+    $("distLbl").innerHTML=`<b>${dists.length}</b> districts`;
+    const dl=$("distList");dl.innerHTML="";
+    dists.forEach(n=>{const el=document.createElement("div");el.className="row";el.dataset.d=n;
+      el.tabIndex=0;el.setAttribute("role","button");el.setAttribute("aria-pressed","false");
+      el.innerHTML=`<span class="sw" style="background:${distColors[n]}"></span>
+        <span class="nm">${n?esc(cap(n)):'<span class="nr">District not in source</span>'}</span><span class="ct">${nf(dcount[n])}</span>`;
+      el.onclick=()=>{activeDist=activeDist===n?null:n;
+        [...dl.children].forEach(c=>{const on=c.dataset.d===activeDist;c.classList.toggle("selrow",on);c.setAttribute("aria-pressed",on);});
+        applyFilter();};
+      el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();el.onclick();}};
+      dl.appendChild(el);});
+    $("statesSec").style.display="none";$("stateSec").style.display="flex";markActive(slug);
+    statusEl.classList.remove("show");
+    return true;
+  }
+
+  // ---------- spatial grid + hover hit-testing ----------
+  function buildGrid(){
+    let mnLon=1e9,mnLat=1e9,mxLon=-1e9,mxLat=-1e9;
+    const bb=feats.map(f=>{let a=1e9,b=1e9,c=-1e9,d=-1e9;
+      eachRing(f.geometry,r=>r.forEach(([lo,la])=>{if(lo<a)a=lo;if(lo>c)c=lo;if(la<b)b=la;if(la>d)d=la;}));
+      if(a<mnLon)mnLon=a;if(c>mxLon)mxLon=c;if(b<mnLat)mnLat=b;if(d>mxLat)mxLat=d;
+      return f._bbl=[a-dispTol,b-dispTol,c+dispTol,d+dispTol];});
+    gGN=Math.max(30,Math.min(220,Math.round(Math.sqrt(feats.length))));
+    gMinLon=mnLon;gMinLat=mnLat;gCellLon=(mxLon-mnLon)/gGN||1;gCellLat=(mxLat-mnLat)/gGN||1;
+    gcells=new Array(gGN*gGN);
+    feats.forEach((f,i)=>{const [a,b,c,d]=bb[i];
+      const c0=Math.max(0,(a-gMinLon)/gCellLon|0),c1=Math.min(gGN-1,(c-gMinLon)/gCellLon|0);
+      const r0=Math.max(0,(b-gMinLat)/gCellLat|0),r1=Math.min(gGN-1,(d-gMinLat)/gCellLat|0);
+      for(let r=r0;r<=r1;r++)for(let cc=c0;cc<=c1;cc++){const kk=r*gGN+cc;(gcells[kk]||(gcells[kk]=[])).push(i);}});}
+  // Colour regions so neighbours never share a colour. Rasterise them into region ids, record
+  // which regions touch (looking across 1-cell slivers left by simplification), then DSATUR
+  // greedy colouring: most-constrained region first, taking the palette colour most unlike
+  // its neighbours', then the least used. Districts rasterise through the village hit-test
+  // grid; states (no villages loaded) through a scanline fill of their outlines.
+  const PAL_RGB=PALETTE.map(h=>[1,3,5].map(o=>parseInt(h.slice(o,o+2),16)));
+  const cdist=(a,b)=>{const p=PAL_RGB[a],q=PAL_RGB[b];return (p[0]-q[0])**2+(p[1]-q[1])**2+(p[2]-q[2])**2;};
+  function colourDistricts(dists){
+    const di={},N=dists.length;dists.forEach((n,j)=>di[n]=j);
+    const spanLon=gCellLon*gGN,spanLat=gCellLat*gGN;
+    const step=Math.max(spanLon,spanLat)/Math.min(320,Math.max(80,Math.round(Math.sqrt(feats.length)*1.5)));
+    const W=Math.ceil(spanLon/step)+1,H=Math.ceil(spanLat/step)+1,ras=new Int16Array(W*H).fill(-1);
+    for(let r=0;r<H;r++)for(let c=0;c<W;c++){const i=hitTest(gMinLon+(c+.5)*step,gMinLat+(r+.5)*step);
+      if(i>=0)ras[r*W+c]=di[feats[i].properties.d||""];}
+    const col=greedyColour(neighbours(ras,W,H,N));
+    distColors={};dists.forEach((n,j)=>distColors[n]=PALETTE[col[j]]);
+  }
+  function neighbours(ras,W,H,N){const nb=Array.from({length:N},()=>new Set());
+    const link=(a,b)=>{if(b>=0&&b!==a){nb[a].add(b);nb[b].add(a);}};
+    for(let r=0;r<H;r++)for(let c=0;c<W;c++){const a=ras[r*W+c];if(a<0)continue;
+      if(c+1<W){const b=ras[r*W+c+1];link(a,b>=0||c+2>=W?b:ras[r*W+c+2]);}
+      if(r+1<H){const b=ras[(r+1)*W+c];link(a,b>=0||r+2>=H?b:ras[(r+2)*W+c]);}}
+    return nb;}
+  function greedyColour(nb){const N=nb.length;
+    const col=new Array(N).fill(-1),used=new Array(PALETTE.length).fill(0);
+    for(let n=0;n<N;n++){
+      let v=-1,bs=-1,bd=-1;
+      for(let u=0;u<N;u++){if(col[u]>=0)continue;
+        const sat=new Set([...nb[u]].map(w=>col[w]).filter(x=>x>=0)).size;
+        if(sat>bs||(sat===bs&&nb[u].size>bd)){v=u;bs=sat;bd=nb[u].size;}}
+      const taken=[...nb[v]].map(w=>col[w]).filter(x=>x>=0);
+      let pick=0,ps=-Infinity;
+      for(let c=0;c<PALETTE.length;c++){if(taken.includes(c))continue;
+        const md=taken.length?Math.min(...taken.map(t=>cdist(c,t))):1e9;
+        const sc=Math.min(md,15000)-used[c]*600;        // contrast up to "clearly different", then spread use
+        if(sc>ps){ps=sc;pick=c;}}
+      col[v]=pick;used[pick]++;}
+    return col;}
+  // overview: scanline-fill each state outline (world coords) into a raster of state ids
+  let stateCol=null;
+  function colourStates(){
+    const G=260,rs=INDIA.map(f=>{const rings=[],bb=[1e9,1e9,-1e9,-1e9];projRings(f.geometry,rings,bb);return rings;});
+    const step=Math.max(PW,PH)/G,W=Math.ceil(PW/step),H=Math.ceil(PH/step),ras=new Int16Array(W*H).fill(-1);
+    rs.forEach((rings,sid)=>{for(let r=0;r<H;r++){const y=(r+.5)*step;
+      for(const ring of rings){const xs=[];
+        for(let i=0,j=ring.length-1;i<ring.length;j=i++){const yi=ring[i][1],yj=ring[j][1];
+          if((yi>y)!==(yj>y))xs.push(ring[i][0]+(y-yi)*(ring[j][0]-ring[i][0])/(yj-yi));}
+        xs.sort((a,b)=>a-b);
+        for(let q=0;q+1<xs.length;q+=2)for(let c=Math.max(0,Math.round(xs[q]/step));c<Math.min(W,Math.round(xs[q+1]/step));c++)ras[r*W+c]=sid;}}});
+    stateCol=greedyColour(neighbours(ras,W,H,INDIA.length)).map(c=>PALETTE[c]);}
+
+  let hoverRAF=0,hoverXY=null;
+  svg.addEventListener("pointermove",e=>{if(pan||pinch||mode!=="state")return;
+    hoverXY=[e.clientX,e.clientY];if(!hoverRAF)hoverRAF=requestAnimationFrame(doHover);});
+  function doHover(){hoverRAF=0;if(!hoverXY)return;
+    const [lon,lat]=screenLonLat(hoverXY[0],hoverXY[1]),i=hitTest(lon,lat);
+    if(i===hoverI)return;hoverI=i;
+    if(i<0){hoverEl.setAttribute("d","");if(selI<0)info.classList.remove("show");}
+    else{hoverEl.setAttribute("d",pathFor(feats[i].geometry));if(selI<0)cardVillage(i);}}
+  ctx.addEventListener("pointerover",e=>{if(e.target.__s==null)return;
+    if(mode==="overview")cardState(e.target.__s);});
+
+  // ---------- village search / district filter ----------
+  const villSearch=$("villSearch");
+  function applyFilter(){scene.querySelectorAll("path.dist").forEach(p=>
+    p.classList.toggle("dim",activeDist&&p.dataset.d!==activeDist));scheduleLabels();}
+  function zoomToFeature(i){let a=1e9,b=1e9,c=-1e9,d=-1e9;
+    eachRing(feats[i].geometry,r=>r.forEach(([lo,la])=>{const[mx,my]=merc(lo,la),X=px(mx),Y=py(my);
+      if(X<a)a=X;if(X>c)c=X;if(Y<b)b=Y;if(Y>d)d=Y;}));
+    const bw=c-a||10,bh=d-b||10;k=Math.min(40,Math.max(3,.5*Math.min(PW/bw,PH/bh)));
+    tx=PW/2-(a+c)/2*k;ty=PH/2-(b+d)/2*k;
+    // phones: the info card covers the bottom of the map, so centre the village in the space above it
+    if(window.innerWidth<=860&&info.classList.contains("show"))ty-=(info.offsetHeight+12)/2/svg.getScreenCTM().a;
+    clamp();apply();}
+  // Every word must appear in "village taluk district" ("rampur bareilly" narrows 217 Rampurs to
+  // one district). Ranked: exact name, then name prefix, then name contains, then taluk/district hits.
+  const RES_MAX=100, resBox=$("villResults"), resSum=$("resSum");
+  let resIdx=[], resOn=-1;
+  function hlName(name,t){const k=name.toLowerCase().indexOf(t);if(!t||k<0)return esc(name);
+    return esc(name.slice(0,k))+"<mark>"+esc(name.slice(k,k+t.length))+"</mark>"+esc(name.slice(k+t.length));}
+  function hoverVillage(i){hoverI=i;if(hoverEl)hoverEl.setAttribute("d",i<0?"":pathFor(feats[i].geometry));}
+  function runSearch(){
+    const raw=villSearch.value.trim(), q=raw.toLowerCase(), sec=$("stateSec");
+    resBox.dataset.q=q;
+    if(!q){sec.classList.remove("searching");villSearch.setAttribute("aria-expanded","false");
+      villSearch.removeAttribute("aria-activedescendant");resIdx=[];resOn=-1;resBox.innerHTML="";hoverVillage(-1);return;}
+    const toks=q.split(/\s+/), t0=toks[0], hits=[];
+    for(let i=0;i<feats.length;i++){const f=feats[i];
+      if(activeDist&&f.properties.d!==activeDist)continue;
+      if(!toks.every(t=>f._q.includes(t)))continue;
+      const n=f._n;hits.push([n===q||n===t0?0:n.startsWith(t0)?1:n.includes(t0)?2:3,i]);}
+    hits.sort((a,b)=>a[0]-b[0]||(feats[a[1]]._n<feats[b[1]]._n?-1:feats[a[1]]._n>feats[b[1]]._n?1:0));
+    resIdx=hits.slice(0,RES_MAX).map(h=>h[1]);resOn=resIdx.length?0:-1;
+    const scope=activeDist?" in "+esc(cap(activeDist)):"";
+    resSum.innerHTML=!hits.length?"":`<b>${nf(hits.length)}</b> ${hits.length===1?"village":"villages"}${scope}`+
+      (hits.length>RES_MAX?` · showing first ${RES_MAX}. Add a taluk or district name to narrow.`:"");
+    resBox.innerHTML=hits.length?resIdx.map((i,j)=>{const p=feats[i].properties;
+      return `<button class="res" id="res${j}" role="option" data-j="${j}" tabindex="-1">
+        <span class="rn">${p.n?hlName(p.n,t0):'<span class="nr">Unnamed</span>'+(p.l?" · LGD "+esc(p.l):" · no LGD code")}</span>
+        <span class="rm"><span class="sw" style="background:${distColor(p.d)}"></span>${esc(cap(p.s))} · ${esc(cap(p.d))}</span></button>`;}).join("")
+      :`<p class="rempty">No villages match “${esc(raw)}”${scope}.`+
+        (activeDist?` <button class="linkbtn" id="allDists">Search all districts</button>`:"")+`</p>`;
+    const all=$("allDists");if(all)all.onclick=()=>{activeDist=null;
+      [...$("distList").children].forEach(c=>c.classList.remove("selrow"));applyFilter();runSearch();villSearch.focus();};
+    sec.classList.add("searching");villSearch.setAttribute("aria-expanded","true");
+    resBox.scrollTop=0;markRes(false);}
+  function markRes(scroll){
+    [...resBox.children].forEach((b,j)=>{b.classList.toggle("on",j===resOn);b.setAttribute("aria-selected",j===resOn);});
+    if(resOn<0){villSearch.removeAttribute("aria-activedescendant");hoverVillage(-1);return;}
+    villSearch.setAttribute("aria-activedescendant","res"+resOn);
+    if(scroll)$("res"+resOn).scrollIntoView({block:"nearest"});
+    hoverVillage(resIdx[resOn]);}                              // preview it on the map
+  function pickRes(j){if(j<0||j>=resIdx.length)return;resOn=j;markRes(true);
+    setSelect(resIdx[j],true);
+    if(window.innerWidth<=860){setNav(false);villSearch.blur();}}
+  let vt;villSearch.addEventListener("input",()=>{clearTimeout(vt);vt=setTimeout(runSearch,150);});
+  villSearch.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){if(!resIdx.length)return;e.preventDefault();
+      resOn=(resOn+(e.key==="ArrowDown"?1:-1)+resIdx.length)%resIdx.length;markRes(true);}
+    else if(e.key==="Enter"){e.preventDefault();clearTimeout(vt);
+      if(villSearch.value.trim().toLowerCase()!==resBox.dataset.q)runSearch();pickRes(resOn);}
+    else if(e.key==="Escape"&&villSearch.value){e.preventDefault();villSearch.value="";runSearch();}});
+  resBox.addEventListener("click",e=>{const b=e.target.closest(".res");if(b)pickRes(+b.dataset.j);});
+  resBox.addEventListener("pointermove",e=>{const b=e.target.closest(".res");
+    if(b&&+b.dataset.j!==resOn){resOn=+b.dataset.j;markRes(false);}});
+  resBox.addEventListener("pointerleave",()=>{if(resOn>=0)hoverVillage(-1);});
+
+  // ---------- sidebar state list ----------
+  function hoverState(slug,on){const p=ctx.querySelector('path[data-slug="'+slug+'"]');if(p)p.classList.toggle("hl",on);}
+  function buildStateList(){const wrap=$("stateList");wrap.innerHTML="";
+    $("stateCount").textContent=STATES.length;
+    STATES.forEach(s=>{const el=document.createElement("div");
+      el.className="row"+(s.villages?"":" nodata");el.dataset.slug=s.slug;el.tabIndex=0;el.setAttribute("role","button");
+      el.innerHTML=`<span class="nm">${esc(s.name)}</span>`+
+        (s.villages?`<span class="ct">${nf(s.villages)}</span>`:`<span class="ct nodat">no data</span>`);
+      if(s.villages)el.onclick=()=>enterState(s.slug);
+      el.onkeydown=e=>{if((e.key==="Enter"||e.key===" ")&&s.villages){e.preventDefault();enterState(s.slug);}};
+      el.onmouseenter=()=>hoverState(s.slug,true);el.onmouseleave=()=>hoverState(s.slug,false);
+      wrap.appendChild(el);});}
+  function markActive(slug){[...$("stateList").children].forEach(c=>c.classList.toggle("active",c.dataset.slug===slug));}
+  const ss=$("stateSearch");
+  ss.addEventListener("input",()=>{const q=ss.value.trim().toLowerCase();
+    [...$("stateList").children].forEach(c=>{const s=STATES.find(x=>x.slug===c.dataset.slug);
+      c.style.display=(!q||s.name.toLowerCase().includes(q))?"":"none";});});
+
+  $("backBtn").onclick=()=>drawOverview(true);
+  function setNav(open){$("app").classList.toggle("nav-open",open);$("menuBtn").setAttribute("aria-expanded",open);}
+  $("menuBtn").onclick=()=>setNav(!$("app").classList.contains("nav-open"));
+  $("backdrop").onclick=()=>setNav(false);
+  $("upBtn").onclick=()=>drawOverview(true);
+  addEventListener("keydown",e=>{if(e.key==="Escape"&&$("app").classList.contains("nav-open")&&!about.open){setNav(false);$("menuBtn").focus();}});
+  // ---------- about the data ----------
+  const about=$("about");
+  $("aboutBtn").onclick=()=>{const miss=STATES.filter(s=>!s.villages).map(s=>s.name);
+    // one no-data outline covers two UTs ("Jammu & Kashmir / Ladakh"), so count by name
+    const units=n=>n.split(" / ").length, total=STATES.reduce((t,s)=>t+units(s.name),0);
+    $("aboutReleased").textContent=`${total-miss.reduce((t,n)=>t+units(n),0)} of India's ${total} states and UTs are in the public release so far. `+
+      (miss.length?`Not yet released: ${miss.join(", ")}.`:"");
+    about.showModal();};
+  $("aboutClose").onclick=()=>about.close();
+  about.addEventListener("click",e=>{if(e.target===about)about.close();});   // click on the backdrop
+
+  // ---------- gaps in the source, per state ----------
+  // Counted from the loaded file. "Show" outlines the affected villages on the map.
+  const STATE_NOTES={
+    gujarat:"Some district names are spelled more than one way in the source (for example Devbhumi Dwarka), so they show as separate districts.",
+    jharkhand:"One area is labelled \u201cDisputed\u201d in the source instead of a district."};
+  let gapSets={}, gapOn=null;
+  function buildGapBox(slug){
+    const g={noName:[],noLgd:[],dupLgd:[],noTaluk:[],noCat:[],underProc:[]}, seen=new Map();
+    feats.forEach((f,i)=>{const p=f.properties;
+      if(!p.n)g.noName.push(i);
+      if(!p.l)g.noLgd.push(i);else{const s=seen.get(p.l);
+        if(s==null)seen.set(p.l,i);else{if(s>=0){g.dupLgd.push(s);seen.set(p.l,-1);}g.dupLgd.push(i);}}
+      if(!p.s)g.noTaluk.push(i);
+      const c=normCat(p.c);if(c==="")g.noCat.push(i);else if(c==="Under process")g.underProc.push(i);});
+    gapSets=g;gapOn=null;gapEl.setAttribute("d","");
+    const N=feats.length, pct=n=>n/N<.01?"<1%":Math.round(n/N*100)+"%";
+    const TXT={noName:"have no name",noLgd:"have no LGD code",dupLgd:"share an LGD code with another village",
+      noTaluk:"have no taluk",noCat:"have no category",underProc:"are marked \u201cUnder process\u201d"};
+    const rows=Object.keys(TXT).filter(key=>g[key].length).map(key=>
+      `<li><span><b>${nf(g[key].length)}</b> villages (${pct(g[key].length)}) ${TXT[key]}</span>
+        <button class="linkbtn" data-gap="${key}" aria-pressed="false">Show</button></li>`);
+    if(STATE_NOTES[slug])rows.push(`<li><span>${STATE_NOTES[slug]}</span></li>`);
+    $("gapBox").innerHTML=`<p class="gh">Gaps in the source data</p>`+(rows.length?`<ul>${rows.join("")}</ul>`
+      :`<p class="ok" style="margin:0">Every village has a name, LGD code and taluk in the source.</p>`);}
+  $("gapBox").addEventListener("click",e=>{const b=e.target.closest("[data-gap]");if(!b)return;
+    const key=b.dataset.gap;gapOn=gapOn===key?null:key;
+    $("gapBox").querySelectorAll("[data-gap]").forEach(x=>{const on=x.dataset.gap===gapOn;
+      x.setAttribute("aria-pressed",on);x.textContent=on?"Hide":"Show";});
+    gapEl.setAttribute("d",gapOn?gapSets[gapOn].map(i=>pathFor(feats[i].geometry)).join(""):"");
+    if(gapOn&&window.innerWidth<=860)setNav(false);});
+
+  // ---------- labels ----------
+  // State / district / village names in an HTML layer. Each label sits on the widest horizontal
+  // run through its shape and only shows if it fits inside that run and doesn't collide with a
+  // label already placed (placed biggest-first). Village names appear once few enough are on screen.
+  const labelsEl=$("labels"), mctx=document.createElement("canvas").getContext("2d"), wCache=new Map();
+  const rootCss=getComputedStyle(document.documentElement);
+  const SANS=rootCss.getPropertyValue("--sans");
+  const FONTS={st:"600 13.5px "+SANS,di:"600 11px "+SANS,vi:"500 12px "+SANS};
+  // widths are measured with the web font, so re-measure once it has loaded
+  if(document.fonts)document.fonts.ready.then(()=>{wCache.clear();scheduleLabels();});
+  let stateLabs=[], districtLabs=[], labRAF=0;
+  function textW(cls,t){const key=cls+"|"+t;let w=wCache.get(key);
+    if(w==null){mctx.font=FONTS[cls];w=mctx.measureText(cls==="di"?t.toUpperCase():t).width+(cls==="di"?t.length*.66:0);wCache.set(key,w);}
+    return w;}
+  function projRings(g,rings,bb){eachRing(g,r=>rings.push(r.map(([lo,la])=>{const[x,y]=merc(lo,la),X=px(x),Y=py(y);
+    if(X<bb[0])bb[0]=X;if(X>bb[2])bb[2]=X;if(Y<bb[1])bb[1]=Y;if(Y>bb[3])bb[3]=Y;return[X,Y];})));}
+  // widest horizontal run through the shape (tries 3 heights) -> [x, y, width] in world units.
+  // Each ring's crossings pair up into intervals that are merged across rings, so a district
+  // made of hundreds of adjacent villages still reads as one continuous run.
+  function labelPoint(rings,bb){let best=[(bb[0]+bb[2])/2,(bb[1]+bb[3])/2,0];const tol=(bb[2]-bb[0])*.004;
+    for(const f of [.5,.36,.64]){const y=bb[1]+(bb[3]-bb[1])*f,iv=[];
+      for(const r of rings){const xs=[];
+        for(let i=0,j=r.length-1;i<r.length;j=i++){const yi=r[i][1],yj=r[j][1];
+          if((yi>y)!==(yj>y))xs.push(r[i][0]+(y-yi)*(r[j][0]-r[i][0])/(yj-yi));}
+        xs.sort((a,b)=>a-b);for(let q=0;q+1<xs.length;q+=2)iv.push([xs[q],xs[q+1]]);}
+      iv.sort((a,b)=>a[0]-b[0]);let cur=null;
+      const take=()=>{if(cur&&cur[1]-cur[0]>best[2])best=[(cur[0]+cur[1])/2,y,cur[1]-cur[0]];};
+      for(const v of iv){if(cur&&v[0]<=cur[1]+tol){if(v[1]>cur[1])cur[1]=v[1];}else{take();cur=v.slice();}}
+      take();}
+    return best;}
+  function computeStateLabs(){stateLabs=INDIA.map(f=>{const rings=[],bb=[1e9,1e9,-1e9,-1e9];projRings(f.geometry,rings,bb);
+    const [x,y,w]=labelPoint(rings,bb);return{t:f.properties.name,x,y,w,nod:!f.properties.villages};}).sort((a,b)=>b.w-a.w);}
+  function computeDistrictLabs(dists){const by={};
+    feats.forEach(f=>{const d=f.properties.d||"";(by[d]||(by[d]=[])).push(f);});
+    distBB={};
+    districtLabs=dists.map(n=>{const rings=[],bb=[1e9,1e9,-1e9,-1e9];by[n].forEach(f=>projRings(f.geometry,rings,bb));
+      distBB[n]=bb;const [x,y,w]=labelPoint(rings,bb);return{t:cap(n),d:n,x,y,w};}).filter(l=>l.t).sort((a,b)=>b.w-a.w);}
+  function villageLab(f){if(!f._lp){const rings=[],bb=[1e9,1e9,-1e9,-1e9];projRings(f.geometry,rings,bb);
+    f._lp=labelPoint(rings,bb);f._wb=bb;}return f._lp;}
+  // villages whose bbox is on screen, or null if more than `max` (too dense to label)
+  function villagesOnScreen(r,max){
+    const a=screenLonLat(r.left,r.bottom),b=screenLonLat(r.right,r.top);
+    const c0=Math.max(0,Math.floor((a[0]-gMinLon)/gCellLon)),c1=Math.min(gGN-1,Math.floor((b[0]-gMinLon)/gCellLon));
+    const r0=Math.max(0,Math.floor((a[1]-gMinLat)/gCellLat)),r1=Math.min(gGN-1,Math.floor((b[1]-gMinLat)/gCellLat));
+    if(c1<c0||r1<r0)return [];
+    if((c1-c0+1)*(r1-r0+1)*feats.length/(gGN*gGN)>max*6)return null;   // clearly too many
+    const seen=new Set(),out=[];
+    for(let rr=r0;rr<=r1;rr++)for(let cc=c0;cc<=c1;cc++){const cell=gcells[rr*gGN+cc];if(!cell)continue;
+      for(const i of cell){if(seen.has(i))continue;seen.add(i);const q=feats[i]._bbl;
+        if(q[2]<a[0]||q[0]>b[0]||q[3]<a[1]||q[1]>b[1])continue;out.push(i);if(out.length>max)return null;}}
+    return out;}
+  function scheduleLabels(){if(!labRAF)labRAF=requestAnimationFrame(layoutLabels);}
+  function layoutLabels(){labRAF=0;
+    const m=world.getScreenCTM(),r=$("stage").getBoundingClientRect();if(!m||!r.width){labelsEl.innerHTML="";return;}
+    const S=m.a,ox=m.e-r.left,oy=m.f-r.top,W=r.width,H=r.height,placed=[],out=[];
+    const put=(cls,t,x,y,room,slack,extra)=>{const sx=x*S+ox,sy=y*S+oy;
+      if(sx<-80||sy<-20||sx>W+80||sy>H+20)return;
+      const w=textW(cls,t);if(w>room*S*slack)return;
+      const h=cls==="st"?15:13,bx=[sx-w/2-4,sy-h/2-2,sx+w/2+4,sy+h/2+2];
+      for(const p of placed)if(bx[0]<p[2]&&bx[2]>p[0]&&bx[1]<p[3]&&bx[3]>p[1])return;
+      placed.push(bx);out.push(`<text class="${cls}${extra||""}" x="${sx.toFixed(1)}" y="${sy.toFixed(1)}">${esc(t)}</text>`);};
+    if(mode==="overview")stateLabs.forEach(l=>put("st",l.t,l.x,l.y,l.w,1.3,l.nod?" nod":""));
+    else if(mode==="state"){
+      const vis=villagesOnScreen(r,260);
+      if(vis&&vis.length){
+        vis.map(i=>feats[i]).filter(f=>f.properties.n&&(!activeDist||f.properties.d===activeDist))
+          .sort((p,q)=>(q.properties.a||0)-(p.properties.a||0))
+          .forEach(f=>{const [x,y,w]=villageLab(f);put("vi",f.properties.n,x,y,w,1.3);});}
+      else districtLabs.forEach(l=>{if(!activeDist||l.d===activeDist)put("di",l.t,l.x,l.y,l.w,1);});
+      // a ring marks the selected village when it's too small to spot
+      if(selI>=0){const f=feats[selI];villageLab(f);const bb=f._wb;
+        if(Math.max(bb[2]-bb[0],bb[3]-bb[1])*S<26)
+          out.push(`<circle class="pin" r="15" cx="${((bb[0]+bb[2])/2*S+ox).toFixed(1)}" cy="${((bb[1]+bb[3])/2*S+oy).toFixed(1)}"/>`);}}
+    labelsEl.innerHTML=out.join("");
+    updateScale(S,r);
+    if(mode==="state")ensureDetail(S,ox,oy,W,H);}
+  // metres per pixel at the centre of the view -> the longest round length that fits in ~110 px
+  function updateScale(S,r){
+    const lat=screenLonLat(r.left+r.width/2,r.top+r.height/2)[1];
+    const mpp=111320*Math.cos(lat*Math.PI/180)/(pScale*S), max=mpp*110, p10=Math.pow(10,Math.floor(Math.log10(max)));
+    const len=[5,2,1].map(m=>m*p10).find(v=>v<=max)||p10;
+    $("scalebar").querySelector(".bar").style.width=(len/mpp).toFixed(1)+"px";
+    $("scalebar").querySelector(".txt").textContent=len>=1000?nf(len/1000)+" km":nf(len)+" m";}
+
+  // ---------- full detail on demand ----------
+  // The display file is simplified by dispTol degrees. Once that would show as more than half a
+  // pixel, fetch the exact boundaries for the districts on screen and swap them in (same village
+  // order in both files; LGD codes are checked before swapping).
+  function ensureDetail(S,ox,oy,W,H){
+    if(!detailFiles||dispTol*pScale*S<=0.5)return;
+    const x0=-ox/S,y0=-oy/S,x1=(W-ox)/S,y1=(H-oy)/S;
+    for(const n in distBB){const b=distBB[n];if(b[2]<x0||b[0]>x1||b[3]<y0||b[1]>y1)continue;loadDetail(n);}}
+  function detailChip(){const c=$("detailChip");c.textContent=detailPending?"Loading full detail…":"";
+    c.classList.toggle("show",detailPending>0);}
+  function loadDetail(n){
+    if(!detailFiles||detailState[n]||!(n in detailFiles)||!distIdx[n])return;
+    const slug=curSlug,seq=loadSeq;detailState[n]="loading";detailPending++;detailChip();
+    fetch(`data/${slug}/${detailFiles[n]}.geojson?v=${DATA_V}`)
+      .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+      .then(fc=>{if(seq!==loadSeq)return;
+        const idx=distIdx[n],F=fc.features;
+        if(F.length!==idx.length||idx.some((i,j)=>(F[j].properties.l||"")!==(feats[i].properties.l||""))){
+          detailState[n]="mismatch";return;}
+        idx.forEach((i,j)=>{const f=feats[i];f.geometry=F[j].geometry;f._lp=null;f._wb=null;});
+        distEls[n].setAttribute("d",idx.map(i=>pathFor(feats[i].geometry)).join(""));
+        detailState[n]="full";
+        if(selI>=0&&feats[selI].properties.d===n)selPath(pathFor(feats[selI].geometry));
+        if(hoverI>=0&&feats[hoverI].properties.d===n)hoverEl.setAttribute("d",pathFor(feats[hoverI].geometry));
+        if(gapOn)gapEl.setAttribute("d",gapSets[gapOn].map(i=>pathFor(feats[i].geometry)).join(""));
+        scheduleLabels();})
+      .catch(()=>{if(seq===loadSeq)detailState[n]="error";})
+      .finally(()=>{if(seq===loadSeq){detailPending--;detailChip();}});}
+
+  $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme");
+    const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
+    const next=dark?"light":"dark";document.documentElement.setAttribute("data-theme",next);
+    try{localStorage.setItem("theme",next);}catch(_){}};
+
+  // ---------- boot ----------
+  Promise.all([fetch("data/india.geojson?v="+DATA_V).then(r=>r.json()),
+               fetch("data/states.json?v="+DATA_V).then(r=>r.json())])
+    .then(([india,states])=>{
+      INDIA=india.features.sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
+      STATES=INDIA.map(f=>f.properties);          // slug,name,villages,districts,taluks
+      buildStateList();
+      route();
+      statusEl.classList.remove("show");
+    })
+    .catch(e=>{statusEl.textContent="Could not load map data ("+e.message+")";});
+})();
+</script>
