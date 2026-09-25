@@ -62,6 +62,18 @@ categories) with a button to highlight them. Field names vary between state file
 (`Vill_Cat` / `Vill_cat`, `Sub_dist` / `Subdist`, `DISTRICT`, Madhya Pradesh's
 `Villl_name`), so `build/make_geojson.py` matches them case-insensitively.
 
+## API
+
+Open to any site (CORS), cached at the edge for a day:
+
+| Request | Returns |
+|---|---|
+| `GET /api/village/<lgd>` | the village (or villages, when the source repeats a code): name, state, district, taluk, area, category, bordering villages, page and GeoJSON links |
+| `GET /api/village/<state>/<lgd>.geojson` | the boundary as a GeoJSON Feature with every surveyed point |
+
+Both come from the files `build/make_pages.py` writes (`pages/`, plus the district file and
+position of each village), so a rebuilt dataset updates them after `./sync-r2.sh`.
+
 ## Rebuild the data
 
 Raw SoI zips (`data/raw/`, about 931 MB) and generated GeoJSON (`dist/data/`) are

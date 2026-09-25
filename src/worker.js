@@ -35,6 +35,8 @@ export default {
       return res;
     }
 
+    if (url.pathname === "/api" || url.pathname.startsWith("/api/")) return api(request, env, ctx, url);
+
     // sitemaps, built by build/make_pages.py
     const sm = url.pathname.match(/^\/sitemap(?:-(\d+))?\.xml$/);
     if (sm && (request.method === "GET" || request.method === "HEAD")) {
@@ -131,4 +133,71 @@ async function page(env, url, slug, lgd) {
   headers.set("cache-control", "no-cache");        // small, and must change with each deploy
   headers.delete("etag");                          // the asset's etag doesn't describe this page
   return new Response(res.body, { status: 200, headers });
+}
+
+// ---------- API ----------
+// GET /api/village/<lgd>                     the village(s) with that LGD code, as JSON
+// GET /api/village/<state>/<lgd>.geojson     one village's boundary with every surveyed point
+// Open to any site (CORS), cached at the edge for a day.
+const API_HEADERS = { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*",
+  "cache-control": "public, max-age=86400" };
+const CREDIT = "Village boundaries © Survey of India, National Geospatial Policy 2022";
+const json = (body, status = 200, type) =>
+  new Response(JSON.stringify(body), { status, headers: type ? { ...API_HEADERS, "content-type": type } : API_HEADERS });
+
+async function api(request, env, ctx, url) {
+  if (request.method === "OPTIONS")
+    return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, HEAD" } });
+  if (request.method !== "GET" && request.method !== "HEAD") return json({ error: "Use GET" }, 405);
+  const key = new Request(url.origin + url.pathname);
+  const hit = await caches.default.match(key);
+  if (hit) return hit;
+  const res = await apiAnswer(env, url);
+  if (res.status === 200) ctx.waitUntil(caches.default.put(key, res.clone()));
+  return res;
+}
+
+async function apiAnswer(env, url) {
+  const origin = "https://" + url.host;
+  let m = url.pathname.match(/^\/api\/village\/(\d+)\/?$/);
+  if (m) {
+    const lgd = m[1];
+    const [ix, states] = await Promise.all([r2json(env, `pages/lgd-${lgd.slice(0, 3)}.json`), r2json(env, "states.json")]);
+    const rows = (ix && ix[lgd]) || [];
+    if (!rows.length) return json({ error: `No village with LGD code ${lgd}` }, 404);
+    const stName = s => ((states || []).find(x => x.slug === s) || {}).name || s;
+    return json({ villages: rows.map(([slug, name, d, t, area, cat, nbrs]) => ({
+      lgd, name: name || null, state: stName(slug), state_slug: slug, district: d || null, taluk: t || null,
+      area_km2: area ?? null, category: cat || null,
+      bordering: nbrs.map(([l, n]) => ({ lgd: l || null, name: n || null })),
+      page: `${origin}/${slug}/${lgd}`, geojson: `${origin}/api/village/${slug}/${lgd}.geojson`,
+    })), source: CREDIT });
+  }
+  m = url.pathname.match(/^\/api\/village\/([a-z-]+)\/(\d+)\.geojson$/);
+  if (m) {
+    const [, slug, lgd] = m;
+    const ix = await r2json(env, `pages/lgd-${lgd.slice(0, 3)}.json`);
+    const row = ((ix && ix[lgd]) || []).find(r => r[0] === slug);
+    if (!row) return json({ error: `No village with LGD code ${lgd} in ${slug}` }, 404);
+    const [, name, d, t, area, cat, , file, j] = row;
+    if (!file) return json({ error: "No boundary file for this village" }, 404);
+    const obj = await env.DATA.get(`${slug}/${file}.packed.json`);
+    if (!obj) return json({ error: "Boundary file missing" }, 404);
+    const pk = await obj.json(), g = pk.g[j], q = pk.q;
+    if (!g || (pk.p[j] || {}).l !== lgd) return json({ error: "Boundary not found" }, 404);
+    const ring = r => { const o = []; let x = 0, y = 0;
+      for (let k = 0; k < r.length; k += 2) { x += r[k]; y += r[k + 1]; o.push([x / q, y / q]); } return o; };
+    const polys = g.map(p => p.map(ring));
+    return json({ type: "Feature",
+      properties: { lgd, name: name || null, taluk: t || null, district: d || null, state_slug: slug,
+        area_km2: area ?? null, category: cat || null, source: CREDIT },
+      geometry: polys.length === 1 ? { type: "Polygon", coordinates: polys[0] } : { type: "MultiPolygon", coordinates: polys },
+    }, 200, "application/geo+json; charset=utf-8");
+  }
+  if (url.pathname === "/api" || url.pathname === "/api/")
+    return json({ endpoints: {
+      [`${origin}/api/village/<lgd>`]: "villages with that LGD code: name, state, district, taluk, area, category, bordering villages",
+      [`${origin}/api/village/<state>/<lgd>.geojson`]: "the village boundary as a GeoJSON Feature, every surveyed point",
+    }, example: `${origin}/api/village/626847`, source: CREDIT });
+  return json({ error: "Not found. See /api" }, 404);
 }
