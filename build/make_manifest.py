@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write dist/data/states.json from the per-state geojson files, with clean names."""
+"""Write dist/data/states.json from the per-state geojson files: clean names and village counts."""
 import os, json
 D = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist", "data")
 NAMES = {
@@ -17,7 +17,8 @@ m = []
 for f in sorted(os.listdir(D)):
     if not f.endswith(".geojson") or f == "india.geojson": continue
     slug = f[:-8]
-    m.append({"slug": slug, "name": NAMES.get(slug, slug.replace("-", " ").title())})
+    n = len(json.load(open(os.path.join(D, f)))["features"])     # for the Worker's link previews
+    m.append({"slug": slug, "name": NAMES.get(slug, slug.replace("-", " ").title()), "villages": n})
 m.sort(key=lambda x: x["name"])
 json.dump(m, open(os.path.join(D, "states.json"), "w"))
 print(f"{len(m)} states -> states.json")

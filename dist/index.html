@@ -1,6 +1,18 @@
 <meta charset="utf-8">
 <title>India Village Boundaries · Survey of India</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- link previews; src/worker.js rewrites these for state and village pages -->
+<meta name="description" content="Every village boundary the Survey of India has published: 586,164 villages in 27 states and UTs. Search any village by name or LGD code.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="India Villages">
+<meta property="og:title" content="Every village boundary in India">
+<meta property="og:description" content="Every village boundary the Survey of India has published: 586,164 villages in 27 states and UTs. Search any village by name or LGD code.">
+<meta property="og:url" content="https://indianvillage.4080studio.com/">
+<meta property="og:image" content="https://indianvillage.4080studio.com/cards/india.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://indianvillage.4080studio.com/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -91,6 +103,7 @@
   .backbtn:hover{border-color:var(--accent);color:var(--accent)}
   .backbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   #stateSec{display:none}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .note{flex:none;margin:10px 2px 0;font-size:.7rem;line-height:1.45;color:var(--muted)}
 
   /* village search results replace the district list while a query is typed */
@@ -99,7 +112,13 @@
   #stateSec.searching #distHead,#stateSec.searching #distList{display:none}
   .rsum{flex:none;font-size:.72rem;line-height:1.4;color:var(--muted);padding:0 2px 6px}
   .rsum b{color:var(--ink);font-family:var(--mono);font-weight:600}
-  #villResults{overflow-y:auto;display:flex;flex-direction:column;gap:1px;min-height:0;-webkit-overflow-scrolling:touch}
+  /* home screen: villages from every state, under any matching states */
+  #nWrap{display:none;flex-direction:column;min-height:0;margin-top:9px}
+  #statesSec.vsearch #nWrap{display:flex;flex:1 1 0}
+  #statesSec.vsearch #stateList{flex:0 1 auto;max-height:35%}
+  #statesSec.vsearch #stateList:empty{margin:0}
+  #statesSec.vsearch .note{display:none}
+  #villResults,#nResults{overflow-y:auto;display:flex;flex-direction:column;gap:1px;min-height:0;-webkit-overflow-scrolling:touch}
   .res{display:block;width:100%;text-align:left;padding:.42rem .55rem;border:none;border-radius:8px;
     background:none;font:inherit;color:var(--ink);cursor:pointer}
   .res.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
@@ -144,6 +163,7 @@
   #tools button:hover{border-color:var(--accent);color:var(--accent)}
   #tools button:active{transform:translateY(1px)}
   /* quality switch: filled when full detail is on, plain when the map is simplified */
+  #tools #locBtn[aria-busy="true"] svg{animation:pulse 1s ease-in-out infinite}
   #tools #qBtn{display:none;margin-top:4px;font-size:.66rem;font-weight:600;letter-spacing:.04em}
   #app.in-state #tools #qBtn{display:grid}
   #tools #qBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
@@ -164,6 +184,17 @@
   #info dt{color:var(--muted)}
   #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
   #info dd.code{font-family:var(--mono);font-size:.8rem}
+  #info .nbrs{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:.8rem;line-height:1.5}
+  #info .nbrs:empty{display:none}
+  #info .nbrs .lbl{display:block;margin-bottom:2px}
+  #info .nbrs .linkbtn{font-weight:500;font-size:.8rem}
+  #info .nbrs .od{color:var(--muted)}
+  #info .acts{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  .dl{font-size:.76rem;color:var(--muted)}
+  .dl .linkbtn{font-size:.76rem}
+  #distDl:empty{display:none}
+  #info .share{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem}
+  #info .share svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
   #info .go{margin-top:10px;color:var(--accent);font-size:.8rem;font-weight:600}
   #info .empty{margin:2px 0 0;font-size:.82rem;line-height:1.45;color:var(--muted)}
   #info .gapline{margin:9px 0 0;padding-top:8px;border-top:1px solid var(--line);font-size:.76rem;line-height:1.45;color:var(--muted)}
@@ -218,19 +249,20 @@
     padding:.3rem .7rem;box-shadow:var(--shadow);white-space:nowrap}
   #detailChip.show{display:flex}
   /* shown when full detail is being held back on a slow connection or device */
-  #qualityTip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:13;display:none;align-items:center;gap:.6rem;
+  #qualityTip,#toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:13;display:none;align-items:center;gap:.6rem;
     width:max-content;max-width:calc(100% - 110px);padding:.45rem .5rem .45rem .8rem;font-size:.8rem;line-height:1.35;
     color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
-  #qualityTip.show{display:flex}
-  #qualityTip .qt{color:var(--muted)}
+  #qualityTip.show,#toast.show{display:flex}
+  #toast{z-index:14}
+  #qualityTip .qt,#toast .qt{color:var(--muted)}
   #qualityTip .qt b{color:var(--ink);font-weight:600}
   #qualityTip .hq{flex:none;border:none;border-radius:7px;background:var(--accent);color:var(--panel);font:inherit;font-size:.78rem;
     font-weight:600;padding:.35rem .65rem;cursor:pointer;white-space:nowrap}
   #qualityTip .hq:hover{filter:brightness(1.08)}
-  #qualityTip .dx{flex:none;width:26px;height:26px;border:none;background:none;color:var(--muted);font-size:1rem;cursor:pointer;border-radius:6px}
-  #qualityTip .dx:hover{background:var(--bg);color:var(--ink)}
+  #qualityTip .dx,#toast .dx{flex:none;width:26px;height:26px;border:none;background:none;color:var(--muted);font-size:1rem;cursor:pointer;border-radius:6px}
+  #qualityTip .dx:hover,#toast .dx:hover{background:var(--bg);color:var(--ink)}
   /* phones: the info card owns the bottom edge, so the tip sits top-left, clear of the zoom buttons */
-  @media (max-width:860px){#qualityTip{left:12px;right:58px;transform:none;width:auto;max-width:none}}
+  @media (max-width:860px){#qualityTip,#toast{left:12px;right:58px;transform:none;width:auto;max-width:none}}
   #about .qopts{display:flex;flex-wrap:wrap;gap:.4rem .9rem;margin:.35rem 0}
   #about .qopts label{display:flex;align-items:center;gap:.35rem;cursor:pointer}
   #about .qnote{font-size:.82rem;color:var(--muted)}
@@ -268,6 +300,9 @@
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
+<!-- filled by src/worker.js on state and village pages: a plain-text summary for search
+     engines and screen readers (the map itself is drawn by script) -->
+<div id="seo" class="sr-only"><h1>Every village boundary in India</h1><p>An interactive map of the 586,164 village boundaries the Survey of India has published, across 27 states and union territories. Search any village by name or LGD code, see which villages border it, and download its boundary.</p></div>
 <div id="app">
   <div id="topbar">
     <button id="menuBtn" aria-label="States and districts" aria-expanded="false" aria-controls="sidebar"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
@@ -284,9 +319,14 @@
         <div class="side-head"><div class="lbl"><b id="stateCount"></b> States &amp; UTs</div></div>
         <div class="field">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
-          <input id="stateSearch" type="text" placeholder="Find a state…" autocomplete="off" spellcheck="false">
+          <input id="stateSearch" type="search" placeholder="Find a state, village or LGD code…" autocomplete="off" spellcheck="false"
+            role="combobox" aria-controls="nResults" aria-expanded="false" aria-autocomplete="list">
         </div>
         <div class="list" id="stateList"></div>
+        <div id="nWrap">
+          <div class="rsum" id="nSum" role="status" aria-live="polite"></div>
+          <div id="nResults" role="listbox" aria-label="Villages across India"></div>
+        </div>
         <p class="note">27 states and UTs have village data. The Survey of India hasn't released the rest yet.</p>
       </div>
       <div class="side-sec grow" id="stateSec">
@@ -300,7 +340,7 @@
           <div class="rsum" id="resSum" role="status" aria-live="polite"></div>
           <div id="villResults" role="listbox" aria-label="Matching villages"></div>
         </div>
-        <div class="side-head" id="distHead" style="margin-top:11px"><div class="lbl" id="distLbl">Districts</div></div>
+        <div class="side-head" id="distHead" style="margin-top:11px"><div class="lbl" id="distLbl">Districts</div><span class="dl" id="distDl"></span></div>
         <div class="list" id="distList"></div>
         <div id="gapBox"></div>
       </div>
@@ -315,6 +355,7 @@
         <button id="zin" aria-label="Zoom in"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
         <button id="zout" aria-label="Zoom out"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
         <button id="zreset" aria-label="Fit to view" title="Fit to view"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button id="locBtn" aria-label="Find the village you are in" title="Find the village you are in"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
         <button id="qBtn" aria-label="Full detail boundaries" aria-pressed="true">HD</button>
       </div>
       <div id="info"></div>
@@ -325,6 +366,7 @@
         <button class="hq" id="hqBtn">Switch to full detail</button>
         <button class="dx" id="qtClose" aria-label="Dismiss">×</button>
       </div>
+      <div id="toast" role="status" aria-live="polite"><span class="qt"></span><button class="dx" aria-label="Dismiss">×</button></div>
       <div id="scalebar" aria-hidden="true"><span class="bar"></span><span class="txt"></span></div>
       <div class="cred">Data © Survey of India · National Geospatial Policy 2022</div>
       <svg id="labels" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -354,9 +396,10 @@
   <p class="qnote" id="qualityNote"></p>
   <h3>Notes</h3>
   <ul>
-    <li>Boundaries are simplified so large states load quickly. Use them for reference, not for legal or survey work.</li>
+    <li>Zoomed out, boundaries are simplified so large states load quickly. Zoom in and every surveyed point loads. Use the map for reference, not for legal or survey work.</li>
     <li>The LGD code is the government's village identifier. It links this map to Census and other datasets. You can search by LGD code to find villages that have no name.</li>
-    <li>Released states use Survey of India boundaries. The grey outlines of unreleased states come from GADM, a third-party dataset, and are shown only for context. Their borders may not match India's official boundary.</li>
+    <li>All borders come from the Survey of India. The grey outlines of unreleased states are from its
+      <a href="https://surveyofindia.gov.in/pages/administrative-boundary-data-base-abdb-" target="_blank" rel="noopener">state boundary database</a>.</li>
   </ul>
 </dialog>
 
@@ -382,7 +425,10 @@
   const nf=n=>n.toLocaleString();
   const $=id=>document.getElementById(id);
   const NS="http://www.w3.org/2000/svg", PW=1000, pad=26;
-  const DATA_V="5";   // bump when dist/data is regenerated (busts CDN/browser cache)
+  // The live site routes by path (/goa/626863) so each link gets its own preview; opened as a
+  // plain file or index.html (local dev) it falls back to #goa/626863.
+  const PATHS=!/\.html$/.test(location.pathname)&&location.protocol!=="file:", ROOT=PATHS?"/":"";
+  const DATA_V="6";   // bump when dist/data is regenerated (busts CDN/browser cache)
 
   const svg=$("map"), world=$("world"), ctx=$("ctx"), scene=$("scene"), info=$("info"), statusEl=$("status");
   let INDIA=[], STATES=[];                 // overview outlines + manifest
@@ -496,8 +542,39 @@
       <p class="vname">${p.n?esc(p.n):'<span class="nr">Name not in source</span>'}</p>
       <span class="chip"><span class="dot" style="background:${distColor(p.d)}"></span>${p.d?esc(cap(p.d)):"District not in source"}</span>
       <dl><dt>Taluk</dt><dd>${p.s?esc(cap(p.s)):NR}</dd><dt>Area</dt><dd>${p.a!=null?nf(p.a)+" km²":NR}</dd>
-      <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl>`;
+      <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl><div class="nbrs"></div>`+
+      `<div class="acts"><span class="dl">Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button></span>`+
+      (p.l?`<button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button>`:"")+`</div>`;
+    const sh=info.querySelector(".share");if(sh)sh.onclick=()=>shareVillage(i);
+    info.querySelectorAll(".dl [data-fmt]").forEach(b=>b.onclick=()=>download([i],b.dataset.fmt));
+    if(i===selI)showNeighbours(i);
     info.classList.add("show");wireClose();}
+  // Bordering villages: worked out at build time from the full-detail boundaries (villages
+  // that share a stretch of surveyed boundary, build/make_pages.py), loaded on first use.
+  const nbFiles={}, NB_SHOW=8;
+  function nbFile(slug){return nbFiles[slug]||(nbFiles[slug]=fetch(`${ROOT}data/${slug}.nb.json?v=${DATA_V}`)
+    .then(r=>{if(!r.ok)throw 0;return r.json();}).then(d=>d.v).catch(()=>{delete nbFiles[slug];return null;}));}
+  async function showNeighbours(i){const slug=curSlug, nb=await nbFile(slug);
+    const box=info.querySelector(".nbrs");
+    if(!nb||!box||slug!==curSlug||selI!==i||nb.length!==feats.length)return;
+    const d=feats[i].properties.d, list=nb[i].slice().sort((a,b)=>(feats[a]._n||"~").localeCompare(feats[b]._n||"~"));
+    if(!list.length){box.innerHTML=`<span class="lbl">Bordering villages</span>None in this data. It may be on the coast, a state border or next to a town.`;return;}
+    const item=j=>{const q=feats[j].properties;
+      return `<button class="linkbtn" data-j="${j}">${q.n?esc(q.n):"Unnamed"+(q.l?" ("+esc(q.l)+")":"")}</button>`+
+        (q.d!==d?` <span class="od">(${esc(cap(q.d||"no district"))})</span>`:"");};
+    const render=all=>{box.innerHTML=`<span class="lbl"><b>${list.length}</b> bordering ${list.length===1?"village":"villages"}</span>`+
+      (all?list:list.slice(0,NB_SHOW)).map(item).join(", ")+
+      (!all&&list.length>NB_SHOW?`, <button class="linkbtn more">+${list.length-NB_SHOW} more</button>`:"");
+      box.querySelectorAll("[data-j]").forEach(b=>{const j=+b.dataset.j;
+        b.onclick=()=>setSelect(j,true);b.onmouseenter=()=>hoverVillage(j);b.onmouseleave=()=>hoverVillage(-1);});
+      const m=box.querySelector(".more");if(m)m.onclick=()=>render(true);};
+    render(false);}
+  // phones get the system share sheet; elsewhere the link is copied
+  async function shareVillage(i){const p=feats[i].properties, url=location.href;
+    const title=(p.n||"Village "+p.l)+(p.d?", "+cap(p.d):"");
+    if(navigator.share&&matchMedia("(pointer:coarse)").matches){try{await navigator.share({title,url});}catch(_){}return;}
+    try{await navigator.clipboard.writeText(url);toast("Link copied. It opens this village.");}
+    catch(_){toast(url);}}
   function cardState(s){const p=INDIA[s].properties;
     info.innerHTML=`<button class="close" aria-label="Close">×</button>
       <p class="vname">${esc(p.name)}</p>`+(p.villages
@@ -511,16 +588,19 @@
   function wireClose(){info.querySelector(".close").onclick=()=>{
     if(mode==="state")clearSelect();else info.classList.remove("show");};}
 
-  // ---------- URL: #<state-slug>[/<village LGD code>] ----------
+  // ---------- URL: /<state-slug>[/<village LGD code>] (or #... in local dev, see PATHS) ----------
   // State changes push a history entry (so Back returns to the previous view);
   // village selection replaces it (so the URL is shareable without flooding history).
   let curSlug=null, loadingSlug=null, loadSeq=0;
-  function setHash(h,push){if(location.hash.slice(1)===h)return;
-    history[push?"pushState":"replaceState"](null,"",h?"#"+h:location.pathname+location.search);}
+  const curRoute=()=>decodeURIComponent(PATHS?location.pathname.slice(1).replace(/\/$/,""):location.hash.slice(1));
+  function setHash(h,push){if(curRoute()===h&&!(PATHS&&location.hash))return;
+    history[push?"pushState":"replaceState"](null,"",PATHS?"/"+h:h?"#"+h:location.pathname+location.search);}
   function syncHash(push){const l=selI>=0?feats[selI].properties.l:"";
     setHash(mode==="state"&&curSlug?curSlug+(l?"/"+l:""):"",push);}
   async function route(){
-    const [slug,lgd]=decodeURIComponent(location.hash.slice(1)).split("/");
+    if(PATHS&&location.hash.length>1)             // an old #state/lgd link: move it to the path
+      history.replaceState(null,"","/"+location.hash.slice(1));
+    const [slug,lgd]=curRoute().split("/");
     if(!slug||!STATES.some(s=>s.slug===slug&&s.villages)){
       if(mode!=="overview"||!ctx.firstChild)drawOverview(false);else setHash("",false);return;}
     if(slug===loadingSlug)return;                          // already on its way
@@ -565,6 +645,13 @@
     for(;;){const{done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;onProg(got,total);}
     const buf=new Uint8Array(got);let o=0;for(const p of parts){buf.set(p,o);o+=p.length;}
     return JSON.parse(new TextDecoder().decode(buf));}
+  // .packed.json (build/pack.py): whole-number coordinates, each ring as a start point plus
+  // differences. Decodes to the same GeoJSON features the rest of the app works with.
+  function unpack(d){const q=d.q;
+    const ring=r=>{const o=new Array(r.length/2);let x=0,y=0;
+      for(let j=0,k=0;j<r.length;j+=2,k++){x+=r[j];y+=r[j+1];o[k]=[x/q,y/q];}return o;};
+    return {meta:d.meta,features:d.p.map((p,i)=>{const ps=d.g[i].map(poly=>poly.map(ring));
+      return {type:"Feature",properties:p,geometry:ps.length===1?{type:"Polygon",coordinates:ps[0]}:{type:"MultiPolygon",coordinates:ps}};})};}
   const mb=b=>(b/1048576).toFixed(b<10485760?1:0)+" MB";
   const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
@@ -576,10 +663,10 @@
     const label="Loading "+meta.name+"…";
     statusEl.textContent=label;statusEl.classList.add("show");
     if(window.innerWidth<=860)setNav(false);
-    let data;const stateUrl="data/"+slug+".geojson?v="+DATA_V;
+    let data;const stateUrl=ROOT+"data/"+slug+".packed.json?v="+DATA_V;
     try{
-      data=await fetchJSON(stateUrl,(got,total)=>{if(seq!==loadSeq)return;
-        statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));});
+      data=unpack(await fetchJSON(stateUrl,(got,total)=>{if(seq!==loadSeq)return;
+        statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));}));
     }catch(e){if(seq===loadSeq){loadingSlug=null;statusEl.textContent="Could not load "+meta.name+" ("+e.message+")";}
       return false;}
     if(seq!==loadSeq)return false;                          // user moved on while this was downloading
@@ -719,7 +806,10 @@
   // ---------- village search / district filter ----------
   const villSearch=$("villSearch");
   function applyFilter(){scene.querySelectorAll("path.dist").forEach(p=>
-    p.classList.toggle("dim",activeDist&&p.dataset.d!==activeDist));scheduleLabels();}
+    p.classList.toggle("dim",activeDist&&p.dataset.d!==activeDist));scheduleLabels();
+    const dl=$("distDl");dl.innerHTML=activeDist==null?"":
+      `Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button>`;
+    dl.querySelectorAll("[data-fmt]").forEach(b=>b.onclick=()=>download(distIdx[activeDist],b.dataset.fmt));}
   function zoomToFeature(i){let a=1e9,b=1e9,c=-1e9,d=-1e9;
     eachRing(feats[i].geometry,r=>r.forEach(([lo,la])=>{const[mx,my]=merc(lo,la),X=px(mx),Y=py(my);
       if(X<a)a=X;if(X>c)c=X;if(Y<b)b=Y;if(Y>d)d=Y;}));
@@ -795,9 +885,85 @@
       wrap.appendChild(el);});}
   function markActive(slug){[...$("stateList").children].forEach(c=>c.classList.toggle("active",c.dataset.slug===slug));}
   const ss=$("stateSearch");
-  ss.addEventListener("input",()=>{const q=ss.value.trim().toLowerCase();
+  function filterStates(){const q=ss.value.trim().toLowerCase();
     [...$("stateList").children].forEach(c=>{const s=STATES.find(x=>x.slug===c.dataset.slug);
-      c.style.display=(!q||s.name.toLowerCase().includes(q))?"":"none";});});
+      c.style.display=(!q||s.name.toLowerCase().includes(q))?"":"none";});}
+
+  // ---------- all-India village search (home screen) ----------
+  // make_search.py splits the index by the first two letters of the name (three for busy
+  // prefixes, listed in index.json) and LGD codes by their first two digits, so a query
+  // fetches one small file. The first word must start the name (or LGD code); any other
+  // words can match the name, taluk, district or state.
+  const nBox=$("nResults"), nSum=$("nSum"), N_MAX=60;
+  let nSplit=null, nCache={}, nSeq=0, nRows=[], nOn=-1;
+  const nKey=(t,n)=>[...t.slice(0,n).padEnd(n,"_")].map(c=>c>="a"&&c<="z"?c:"_").join("");
+  function nFile(key){return nCache[key]||(nCache[key]=fetch(ROOT+"data/search/"+key+".json?v="+DATA_V)
+    .then(r=>{if(r.status===404)return {s:[],d:[],t:[],v:[]};   // no names start that way
+      if(!r.ok)throw 0;return r.json();}).catch(()=>{delete nCache[key];return null;}));}
+  const stName=slug=>(STATES.find(s=>s.slug===slug)||{}).name||slug;
+  function nClear(msg){nRows=[];nOn=-1;nBox.innerHTML="";nSum.textContent=msg||"";
+    ss.removeAttribute("aria-activedescendant");}
+  async function runNational(){
+    const raw=ss.value.trim(), q=raw.toLowerCase(), toks=q.split(/\s+/).filter(Boolean), t0=toks[0]||"";
+    const sec=$("statesSec"), seq=++nSeq, num=/^\d+$/.test(t0);
+    if(t0.length<2){sec.classList.remove("vsearch");ss.setAttribute("aria-expanded","false");nClear();return;}
+    sec.classList.add("vsearch");ss.setAttribute("aria-expanded","true");
+    let key;
+    if(num)key="lgd-"+t0.slice(0,2);
+    else{if(!nSplit){const ix=await nFile("index");if(seq!==nSeq)return;
+        if(!ix){nClear("Village search could not load. Check your connection and try again.");return;}
+        nSplit=new Set(ix.split||[]);}
+      key=nKey(t0,2);
+      if(nSplit.has(key)){if(t0.length<3){nClear("Type one more letter to search villages.");return;}key=nKey(t0,3);}}
+    if(!nCache[key])nSum.textContent="Searching villages…";
+    const d=await nFile(key);if(seq!==nSeq)return;
+    if(!d){nClear("Village search could not load. Check your connection and try again.");return;}
+    const rest=toks.slice(1), hits=[];
+    for(const v of d.v){const n=v[0].toLowerCase();
+      if(num?!v[4].startsWith(t0):!n.startsWith(t0))continue;
+      const r={v,slug:d.s[v[1]],d:d.d[v[2]],t:d.t[v[3]]};
+      if(rest.length){const hay=n+" "+(r.t+" "+r.d+" "+stName(r.slug)).toLowerCase();
+        if(!rest.every(t=>hay.includes(t)))continue;}
+      hits.push([num?(v[4]===t0?0:1):(n===q?0:n===t0?1:2),r]);}
+    hits.sort((a,b)=>a[0]-b[0]);                          // files are already in name order
+    nRows=hits.slice(0,N_MAX).map(h=>h[1]);nOn=-1;
+    nSum.innerHTML=!hits.length?"":`<b>${nf(hits.length)}</b> ${hits.length===1?"village":"villages"} across India`+
+      (hits.length>N_MAX?` · showing first ${N_MAX}. Add a district or state name to narrow.`:"");
+    nBox.innerHTML=hits.length?nRows.map((r,j)=>{const v=r.v;
+      const nm=v[0]?(num?esc(v[0]):hlName(v[0],t0)):'<span class="nr">Unnamed</span>';
+      return `<button class="res" id="nres${j}" role="option" data-j="${j}" tabindex="-1">
+        <span class="rn">${nm}${num?' · LGD '+(v[4]===t0?"<mark>"+esc(v[4])+"</mark>":esc(v[4])):""}</span>
+        <span class="rm">${[r.t,r.d].filter(Boolean).map(x=>esc(cap(x))).join(" · ")} · ${esc(stName(r.slug))}</span></button>`;}).join("")
+      :`<p class="rempty">No ${num?"LGD codes":"village names"} start with “${esc(raw)}”.</p>`;
+    nBox.scrollTop=0;nMark(false);}
+  function nMark(scroll){
+    [...nBox.children].forEach((b,j)=>{b.classList.toggle("on",j===nOn);b.setAttribute("aria-selected",j===nOn);});
+    const r=nRows[nOn];ctx.querySelectorAll("path.hl").forEach(p=>p.classList.remove("hl"));
+    if(!r){ss.removeAttribute("aria-activedescendant");return;}
+    ss.setAttribute("aria-activedescendant","nres"+nOn);
+    if(scroll)$("nres"+nOn).scrollIntoView({block:"nearest"});
+    hoverState(r.slug,true);}                                // show which state it's in
+  async function nPick(j){const r=nRows[j];if(!r)return;const v=r.v;
+    if(window.innerWidth<=860){setNav(false);ss.blur();}
+    if(!(mode==="state"&&curSlug===r.slug)&&!await enterState(r.slug))return;
+    const P=f=>f.properties;
+    let i=feats.findIndex(f=>P(f).l===v[4]&&(P(f).n||"")===v[0]);   // LGD codes aren't always unique
+    if(i<0&&v[4])i=feats.findIndex(f=>P(f).l===v[4]);
+    if(i<0)i=feats.findIndex(f=>(P(f).n||"")===v[0]&&(P(f).d||"")===r.d&&(P(f).s||"")===r.t);
+    if(i>=0)setSelect(i,true);}
+  let nt;ss.addEventListener("input",()=>{filterStates();clearTimeout(nt);nt=setTimeout(runNational,150);});
+  ss.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){if(!nRows.length)return;e.preventDefault();
+      nOn=(nOn+(e.key==="ArrowDown"?1:-1)+nRows.length)%nRows.length;nMark(true);}
+    else if(e.key==="Enter"){e.preventDefault();
+      if(nOn>=0){nPick(nOn);return;}
+      const vis=STATES.filter(s=>s.villages&&s.name.toLowerCase().includes(ss.value.trim().toLowerCase()));
+      if(vis.length===1)enterState(vis[0].slug);else if(nRows.length)nPick(0);}
+    else if(e.key==="Escape"&&ss.value){e.preventDefault();ss.value="";filterStates();runNational();}});
+  nBox.addEventListener("click",e=>{const b=e.target.closest(".res");if(b)nPick(+b.dataset.j);});
+  nBox.addEventListener("pointermove",e=>{const b=e.target.closest(".res");
+    if(b&&+b.dataset.j!==nOn){nOn=+b.dataset.j;nMark(false);}});
+  nBox.addEventListener("pointerleave",()=>{nOn=-1;nMark(false);});
 
   $("backBtn").onclick=()=>drawOverview(true);
   function setNav(open){$("app").classList.toggle("nav-open",open);$("menuBtn").setAttribute("aria-expanded",open);}
@@ -808,9 +974,7 @@
   // ---------- about the data ----------
   const about=$("about");
   $("aboutBtn").onclick=()=>{const miss=STATES.filter(s=>!s.villages).map(s=>s.name);
-    // one no-data outline covers two UTs ("Jammu & Kashmir / Ladakh"), so count by name
-    const units=n=>n.split(" / ").length, total=STATES.reduce((t,s)=>t+units(s.name),0);
-    $("aboutReleased").textContent=`${total-miss.reduce((t,n)=>t+units(n),0)} of India's ${total} states and UTs are in the public release so far. `+
+    $("aboutReleased").textContent=`${STATES.length-miss.length} of India's ${STATES.length} states and UTs are in the public release so far. `+
       (miss.length?`Not yet released: ${miss.join(", ")}.`:"");
     syncQualityUI();about.showModal();};
   $("aboutClose").onclick=()=>about.close();
@@ -991,10 +1155,10 @@
   function loadDetail(n){
     if(!detailFiles||detailState[n]||!(n in detailFiles)||!distIdx[n])return;
     const slug=curSlug,seq=loadSeq;detailState[n]="loading";detailPending++;detailChip();
-    const url=`data/${slug}/${detailFiles[n]}.geojson?v=${DATA_V}`;
+    const url=`${ROOT}data/${slug}/${detailFiles[n]}.packed.json?v=${DATA_V}`;
     fetch(url)
       .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
-      .then(fc=>{noteFetch(url);if(seq!==loadSeq)return;
+      .then(d=>{const fc=unpack(d);noteFetch(url);if(seq!==loadSeq)return;
         const idx=distIdx[n],F=fc.features;
         if(F.length!==idx.length||idx.some((i,j)=>(F[j].properties.l||"")!==(feats[i].properties.l||""))){
           detailState[n]="mismatch";return;}
@@ -1008,19 +1172,89 @@
       .catch(()=>{if(seq===loadSeq)detailState[n]="error";})
       .finally(()=>{if(seq===loadSeq){detailPending--;detailChip();}});}
 
+  // ---------- downloads ----------
+  // Always every surveyed vertex: the district's full-detail file is fetched if it isn't on the
+  // map yet (lite mode, or zoomed out). Attributes are written out as the source has them.
+  async function fullGeometry(idx){
+    const byD={};idx.forEach(i=>{const d=feats[i].properties.d||"";(byD[d]||(byD[d]=[])).push(i);});
+    const geom={};
+    for(const n in byD){
+      if(detailState[n]==="full"||!detailFiles||!(n in detailFiles)){byD[n].forEach(i=>geom[i]=feats[i].geometry);continue;}
+      const d=await fetch(`${ROOT}data/${curSlug}/${detailFiles[n]}.packed.json?v=${DATA_V}`).then(r=>{if(!r.ok)throw 0;return r.json();});
+      const F=unpack(d).features, all=distIdx[n];
+      if(F.length!==all.length)throw 0;
+      const want=new Set(byD[n]);all.forEach((i,j)=>{if(want.has(i))geom[i]=F[j].geometry;});}
+    return idx.map(i=>geom[i]);}
+  function exportProps(p){const st=STATES.find(s=>s.slug===curSlug);
+    return {name:p.n||null,lgd_code:p.l||null,taluk:p.s||null,district:p.d||null,state:st?st.name:curSlug,
+      category:normCat("c" in p?p.c:catDefault)||null,area_km2:p.a!=null?p.a:null};}
+  const xesc=v=>String(v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  function toKML(fs,title){
+    const ring=r=>r.map(([x,y])=>x+","+y).join(" ");
+    const poly=p=>`<Polygon><outerBoundaryIs><LinearRing><coordinates>${ring(p[0])}</coordinates></LinearRing></outerBoundaryIs>`+
+      p.slice(1).map(h=>`<innerBoundaryIs><LinearRing><coordinates>${ring(h)}</coordinates></LinearRing></innerBoundaryIs>`).join("")+`</Polygon>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xesc(title)}</name>`+
+      `<description>Village boundaries © Survey of India, National Geospatial Policy 2022</description>`+
+      fs.map(f=>{const g=f.geometry,ps=g.type==="Polygon"?[g.coordinates]:g.coordinates,pr=f.properties;
+        return `<Placemark><name>${xesc(pr.name||"Unnamed ("+(pr.lgd_code||"no LGD code")+")")}</name><ExtendedData>`+
+          Object.entries(pr).filter(([,v])=>v!=null).map(([k,v])=>`<Data name="${k}"><value>${xesc(v)}</value></Data>`).join("")+
+          `</ExtendedData><MultiGeometry>${ps.map(poly).join("")}</MultiGeometry></Placemark>`;}).join("")+`</Document></kml>`;}
+  async function download(idx,fmt){
+    if(!idx||!idx.length)return;
+    let geoms;try{toast("Preparing download…");geoms=await fullGeometry(idx);}
+    catch(_){toast("Couldn't load full detail for the download. Try again.");return;}
+    const fs=idx.map((i,j)=>({type:"Feature",properties:exportProps(feats[i].properties),geometry:geoms[j]}));
+    const one=idx.length===1, p=feats[idx[0]].properties;
+    const title=one?(p.n||"Village "+(p.l||""))+", "+cap(p.d):cap(p.d)+" district villages";
+    const base=[curSlug,one?(p.l||"village"):"",one?p.n:p.d].filter(Boolean).join("-").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    const body=fmt==="kml"?toKML(fs,title):JSON.stringify({type:"FeatureCollection",
+      attribution:"Village boundaries © Survey of India, National Geospatial Policy 2022",features:fs});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([body],{type:fmt==="kml"?"application/vnd.google-earth.kml+xml":"application/geo+json"}));
+    a.download=base+(fmt==="kml"?".kml":".geojson");document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    toast(`Downloaded ${one?"1 village":nf(idx.length)+" villages"} with every surveyed point.`);}
+
+  // ---------- find the village you're in ----------
+  // The position stays in the browser: it's matched against the state outlines, then that
+  // state's villages, and never sent anywhere.
+  let toastT;
+  function toast(msg){const t=$("toast");t.querySelector(".qt").textContent=msg;t.classList.add("show");
+    clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),8000);}
+  $("toast").querySelector(".dx").onclick=()=>$("toast").classList.remove("show");
+  const locBtn=$("locBtn");
+  locBtn.onclick=()=>{
+    if(!navigator.geolocation){toast("This browser can't share your location.");return;}
+    locBtn.setAttribute("aria-busy","true");
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      const lon=pos.coords.longitude, lat=pos.coords.latitude;
+      try{await findAt(lon,lat);}finally{locBtn.removeAttribute("aria-busy");}},
+      err=>{locBtn.removeAttribute("aria-busy");
+        toast(err.code===1?"Location is blocked for this site. Allow it in your browser settings to use this.":"Couldn't get your location. Try again outdoors or with Wi-Fi on.");},
+      {enableHighAccuracy:true,timeout:15000,maximumAge:60000});};
+  async function findAt(lon,lat){
+    const s=INDIA.findIndex(f=>inFeature(lon,lat,f.geometry));
+    if(s<0){toast("You seem to be outside the states on this map.");return;}
+    const p=INDIA[s].properties;
+    if(!p.villages){toast(`You're in ${p.name}. The Survey of India hasn't released village data for it yet.`);return;}
+    if(!(mode==="state"&&curSlug===p.slug)&&!await enterState(p.slug))return;
+    const i=hitTest(lon,lat);
+    if(i>=0){setSelect(i,true);return;}
+    toast(`No village boundary at your spot in ${p.name}. You may be in a town, a forest or on a state border.`);}
+
   $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme");
     const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
     const next=dark?"light":"dark";document.documentElement.setAttribute("data-theme",next);
     try{localStorage.setItem("theme",next);}catch(_){}};
 
   // ---------- boot ----------
-  Promise.all([fetch("data/india.geojson?v="+DATA_V).then(r=>r.json()),
-               fetch("data/states.json?v="+DATA_V).then(r=>r.json())])
+  Promise.all([fetch(ROOT+"data/india.geojson?v="+DATA_V).then(r=>r.json()),
+               fetch(ROOT+"data/states.json?v="+DATA_V).then(r=>r.json())])
     .then(([india,states])=>{
       INDIA=india.features.sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
       STATES=INDIA.map(f=>f.properties);          // slug,name,villages,districts,taluks
       buildStateList();
-      noteFetch("data/india.geojson?v="+DATA_V);
+      noteFetch(ROOT+"data/india.geojson?v="+DATA_V);
       route();
       statusEl.classList.remove("show");
     })

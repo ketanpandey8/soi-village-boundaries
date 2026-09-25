@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://indianvillage.4080studio.com/sitemap.xml

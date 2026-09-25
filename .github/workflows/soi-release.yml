@@ -1,0 +1,30 @@
+# Every Monday, checks Survey of India's village boundary page for new or updated state
+# files (data/check_release.py) and opens an issue if something changed.
+name: Survey of India release check
+on:
+  schedule:
+    - cron: "30 4 * * 1"          # Mondays 10:00 IST
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: diff
+        run: |
+          set +e
+          python3 data/check_release.py > report.txt; code=$?
+          cat report.txt
+          [ $code -eq 2 ] && exit 1                     # the check broke: fail the run instead
+          echo "changed=$([ $code -eq 1 ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - if: steps.diff.outputs.changed == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Survey of India released new village data"
+          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$open" ]; then gh issue comment "$open" --body-file report.txt
+          else gh issue create --title "$title" --body-file report.txt; fi
