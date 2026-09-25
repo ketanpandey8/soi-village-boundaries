@@ -830,11 +830,17 @@
     resBox.dataset.q=q;
     if(!q){sec.classList.remove("searching");villSearch.setAttribute("aria-expanded","false");
       villSearch.removeAttribute("aria-activedescendant");resIdx=[];resOn=-1;resBox.innerHTML="";hoverVillage(-1);return;}
-    const toks=q.split(/\s+/), t0=toks[0], hits=[];
-    for(let i=0;i<feats.length;i++){const f=feats[i];
-      if(activeDist&&f.properties.d!==activeDist)continue;
-      if(!toks.every(t=>f._q.includes(t)))continue;
-      const n=f._n;hits.push([n===q||n===t0?0:n.startsWith(t0)?1:n.includes(t0)?2:3,i]);}
+    // other scripts are turned into English letters; they, and queries with no exact match,
+    // also match by sound key (skel), ranked after exact spellings
+    const indic=isIndic(q), toks=(indic?toLatin(q):q).split(/\s+/).filter(Boolean), t0=toks[0], hits=[];
+    const scan=fuzzy=>{const tk=toks.map(skel);
+      for(let i=0;i<feats.length;i++){const f=feats[i];
+        if(activeDist&&f.properties.d!==activeDist)continue;
+        if(fuzzy){if(f._k==null)f._k=skel(f._q);if(!tk.every(t=>t&&f._k.includes(t)))continue;}
+        else if(!toks.every(t=>f._q.includes(t)))continue;
+        const n=f._n;hits.push([n===q||n===t0?0:n.startsWith(t0)?1:n.includes(t0)?2:fuzzy?4:3,i]);}};
+    if(!indic)scan(false);
+    if(!hits.length)scan(true);
     hits.sort((a,b)=>a[0]-b[0]||(feats[a[1]]._n<feats[b[1]]._n?-1:feats[a[1]]._n>feats[b[1]]._n?1:0));
     resIdx=hits.slice(0,RES_MAX).map(h=>h[1]);resOn=resIdx.length?0:-1;
     const scope=activeDist?" in "+esc(cap(activeDist)):"";
@@ -889,22 +895,82 @@
     [...$("stateList").children].forEach(c=>{const s=STATES.find(x=>x.slug===c.dataset.slug);
       c.style.display=(!q||s.name.toLowerCase().includes(q))?"":"none";});}
 
+  // ---------- names in Indian scripts ----------
+  // The source spells names in English letters only. Queries in Devanagari, Bengali, Gurmukhi,
+  // Gujarati, Odia, Tamil, Telugu, Kannada or Malayalam are turned into English letters first.
+  // These scripts share one layout (each block is U+0900 + 0x80 * n), so one table covers all.
+  const IC={0x05:"a",0x06:"aa",0x07:"i",0x08:"ii",0x09:"u",0x0A:"uu",0x0B:"ri",0x0E:"e",0x0F:"e",0x10:"ai",
+    0x12:"o",0x13:"o",0x14:"au",0x15:"k",0x16:"kh",0x17:"g",0x18:"gh",0x19:"n",0x1A:"ch",0x1B:"chh",0x1C:"j",
+    0x1D:"jh",0x1E:"n",0x1F:"t",0x20:"th",0x21:"d",0x22:"dh",0x23:"n",0x24:"t",0x25:"th",0x26:"d",0x27:"dh",
+    0x28:"n",0x29:"n",0x2A:"p",0x2B:"ph",0x2C:"b",0x2D:"bh",0x2E:"m",0x2F:"y",0x30:"r",0x31:"r",0x32:"l",
+    0x33:"l",0x34:"l",0x35:"v",0x36:"sh",0x37:"sh",0x38:"s",0x39:"h",0x58:"k",0x59:"kh",0x5A:"g",0x5B:"z",
+    0x5C:"r",0x5D:"rh",0x5E:"f",0x5F:"y",0x71:"v",0x72:"a",0x73:"i",0x74:"u"};
+  const IM={0x3E:"aa",0x3F:"i",0x40:"ii",0x41:"u",0x42:"uu",0x43:"ri",0x46:"e",0x47:"e",0x48:"ai",0x4A:"o",
+    0x4B:"o",0x4C:"au",0x57:"au"};
+  const isIndic=s=>/[ऀ-ൿ]/.test(s);
+  // Hindi, Bengali, Gujarati and Punjabi drop the inherent "a" at the end of a word and in the
+  // middle of VCaCV (रामपुर is Rampur, not Ramapura); the southern scripts and Odia keep it.
+  const DROPS_A=new Set([0x900,0x980,0xA00,0xA80]);
+  // words become tokens: [kind, text], kind C consonant, V vowel, A inherent a, N nasal, O other
+  function tokens(w){const t=[];let open=false,block=0;
+    const close=()=>{if(open)t.push(["A","a"]);open=false;};
+    for(const ch of w){const c=ch.codePointAt(0);
+      if(c<0x900||c>0xD7F){close();t.push(["O",ch]);continue;}
+      block=block||c&~0x7F;const k=c&0x7F;
+      if(k>=0x15&&k<=0x39||k>=0x58&&k<=0x5F||k===0x71){close();t.push(["C",IC[k]]);open=true;}
+      else if(k===0x4D){open=false;}                                  // virama
+      else if(k===0x3C){}                                             // nukta
+      else if(k===0x01||k===0x02){close();t.push(["N","n"]);}          // candrabindu, anusvara
+      else if(k===0x03){close();t.push(["O","h"]);}                    // visarga
+      else if(k in IM){t.push(["V",IM[k]]);open=false;}                // vowel sign
+      else if(k in IC){close();t.push(["V",IC[k]]);}                   // independent vowel
+      else if(k>=0x66&&k<=0x6F){close();t.push(["O",String(k-0x66)]);}
+      else close();}
+    close();return {t,block};}
+  function toLatin(s){
+    return s.split(/(\s+)/).map(w=>{if(!isIndic(w))return w;
+      const {t,block}=tokens(w), vowel=x=>x&&(x[0]==="V"||x[0]==="A"||x[0]==="N");
+      if(DROPS_A.has(block)){
+        if(t.length>2&&t[t.length-1][0]==="A")t.pop();
+        // right to left: VC(a)CV loses the a, unless that would pile up three consonants
+        for(let i=t.length-3;i>=2;i--)
+          if(t[i][0]==="A"&&t[i-1][0]==="C"&&vowel(t[i-2])&&t[i+1][0]==="C"&&vowel(t[i+2]))t.splice(i,1);}
+      return t.map((x,i)=>x[0]!=="N"?x[1]:
+        /^[pbm]/.test((t[i+1]||[])[1]||"")?"m":i===t.length-1&&!DROPS_A.has(block)?"m":"n").join("");}).join("");}
+  // for ranking: the spelling with doubled vowels and letters folded, checked before the sound key
+  const plain=s=>s.toLowerCase().replace(/[^a-z ]/g,"").replace(/aa/g,"a").replace(/ee|ii/g,"i")
+    .replace(/oo|uu/g,"u").replace(/w/g,"v").replace(/ph/g,"f").replace(/(.)\1+/g,"$1");
+  // edit distance, to put the closest spellings first among villages with the same sound key
+  function editDist(a,b){if(a===b)return 0;let p=[...Array(b.length+1).keys()];
+    for(let i=1;i<=a.length;i++){const q=[i];
+      for(let j=1;j<=b.length;j++)q[j]=Math.min(p[j]+1,q[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=q;}
+    return p[b.length];}
+  // sound key; must stay identical to key() in build/make_search.py
+  function skel(s){s=s.toLowerCase().replace(/[^a-z ]/g,"");
+    s=s.replace(/ph/g,"f").replace(/w/g,"v").replace(/z/g,"j").replace(/q/g,"k").replace(/x/g,"ks");
+    s=s.replace(/([bcdfgjklmnpstvy])h/g,"$1");
+    s=s.replace(/ee/g,"i").replace(/ii/g,"i").replace(/oo/g,"u").replace(/uu/g,"u");
+    s=s.replace(/ei/g,"e").replace(/ey/g,"e").replace(/y\b/g,"i");
+    s=s.split(" ").filter(Boolean).map(w=>w[0]+w.slice(1).replace(/a/g,"")).join(" ");
+    return s.replace(/(.)\1+/g,"$1");}
+
   // ---------- all-India village search (home screen) ----------
   // make_search.py splits the index by the first two letters of the name (three for busy
   // prefixes, listed in index.json) and LGD codes by their first two digits, so a query
-  // fetches one small file. The first word must start the name (or LGD code); any other
-  // words can match the name, taluk, district or state.
+  // fetches one small file. The first word must start the name (or LGD code), matched by
+  // spelling or by sound key (skel); any other words can match the name, taluk, district or state.
   const nBox=$("nResults"), nSum=$("nSum"), N_MAX=60;
   let nSplit=null, nCache={}, nSeq=0, nRows=[], nOn=-1;
   const nKey=(t,n)=>[...t.slice(0,n).padEnd(n,"_")].map(c=>c>="a"&&c<="z"?c:"_").join("");
-  function nFile(key){return nCache[key]||(nCache[key]=fetch(ROOT+"data/search/"+key+".json?v="+DATA_V)
+  function nFile(key){return nCache[key]||(nCache[key]=fetch(ROOT+"data/find/"+key+".json?v="+DATA_V)
     .then(r=>{if(r.status===404)return {s:[],d:[],t:[],v:[]};   // no names start that way
       if(!r.ok)throw 0;return r.json();}).catch(()=>{delete nCache[key];return null;}));}
   const stName=slug=>(STATES.find(s=>s.slug===slug)||{}).name||slug;
   function nClear(msg){nRows=[];nOn=-1;nBox.innerHTML="";nSum.textContent=msg||"";
     ss.removeAttribute("aria-activedescendant");}
   async function runNational(){
-    const raw=ss.value.trim(), q=raw.toLowerCase(), toks=q.split(/\s+/).filter(Boolean), t0=toks[0]||"";
+    const raw=ss.value.trim(), q=(isIndic(raw)?toLatin(raw):raw).toLowerCase();
+    const toks=q.split(/\s+/).filter(Boolean), t0=toks[0]||"", k0=skel(t0);
     const sec=$("statesSec"), seq=++nSeq, num=/^\d+$/.test(t0);
     if(t0.length<2){sec.classList.remove("vsearch");ss.setAttribute("aria-expanded","false");nClear();return;}
     sec.classList.add("vsearch");ss.setAttribute("aria-expanded","true");
@@ -913,18 +979,21 @@
     else{if(!nSplit){const ix=await nFile("index");if(seq!==nSeq)return;
         if(!ix){nClear("Village search could not load. Check your connection and try again.");return;}
         nSplit=new Set(ix.split||[]);}
-      key=nKey(t0,2);
-      if(nSplit.has(key)){if(t0.length<3){nClear("Type one more letter to search villages.");return;}key=nKey(t0,3);}}
+      if(!k0){nClear();return;}
+      key=nKey(k0,2);
+      if(nSplit.has(key)){if(k0.length<3){nClear("Type one more letter to search villages.");return;}key=nKey(k0,3);}}
     if(!nCache[key])nSum.textContent="Searching villages…";
     const d=await nFile(key);if(seq!==nSeq)return;
     if(!d){nClear("Village search could not load. Check your connection and try again.");return;}
-    const rest=toks.slice(1), hits=[];
-    for(const v of d.v){const n=v[0].toLowerCase();
-      if(num?!v[4].startsWith(t0):!n.startsWith(t0))continue;
+    const rest=toks.slice(1), restK=rest.map(skel), p0=plain(t0), hits=[];
+    for(const v of d.v){const n=v[0].toLowerCase(), prefix=!num&&n.startsWith(t0);
+      let k="";if(!num&&!prefix&&!(k=skel(n)).startsWith(k0))continue;
+      if(num&&!v[4].startsWith(t0))continue;
       const r={v,slug:d.s[v[1]],d:d.d[v[2]],t:d.t[v[3]]};
-      if(rest.length){const hay=n+" "+(r.t+" "+r.d+" "+stName(r.slug)).toLowerCase();
-        if(!rest.every(t=>hay.includes(t)))continue;}
-      hits.push([num?(v[4]===t0?0:1):(n===q?0:n===t0?1:2),r]);}
+      if(rest.length){const hay=n+" "+(r.t+" "+r.d+" "+stName(r.slug)).toLowerCase(), hk=skel(hay);
+        if(!rest.every((t,j)=>hay.includes(t)||hk.includes(restK[j])))continue;}
+      // exact name, then spelled the same way, then same sound with the closest spelling first
+      hits.push([num?(v[4]===t0?0:1):n===q?0:n===t0?1:prefix?2:k===k0?3+editDist(plain(n),p0)/100:4,r]);}
     hits.sort((a,b)=>a[0]-b[0]);                          // files are already in name order
     nRows=hits.slice(0,N_MAX).map(h=>h[1]);nOn=-1;
     nSum.innerHTML=!hits.length?"":`<b>${nf(hits.length)}</b> ${hits.length===1?"village":"villages"} across India`+

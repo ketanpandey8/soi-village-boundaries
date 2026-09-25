@@ -3,7 +3,7 @@
 # whenever you rebuild the data. Code changes don't need this, just git push.
 #
 #   ./sync-r2.sh            # everything, 8 uploads at a time
-#   ./sync-r2.sh search     # only keys starting with "search" (any prefix works)
+#   ./sync-r2.sh find       # only keys starting with "find" (any prefix works)
 #   JOBS=4 ./sync-r2.sh     # fewer at once
 #
 # Uploads what the app reads, keeping the same paths as keys: the India outline and
@@ -22,7 +22,7 @@ export BUCKET DIR
 log=$(mktemp)
 PREFIX="${1:-}"
 find "$DIR" -type f \( -name '*.packed.json' -o -name 'india.geojson' -o -name 'states.json' \
-                     -o -name '*.nb.json' -o -path "$DIR/search/*.json" -o -path "$DIR/pages/*.json" \
+                     -o -name '*.nb.json' -o -path "$DIR/find/*.json" -o -path "$DIR/pages/*.json" \
                      -o -path "$DIR/sitemaps/*.xml" \) | sort | grep -F "$DIR/$PREFIX" |
   xargs -P "$JOBS" -I{} sh -c '
     key="${1#"$DIR"/}"

@@ -71,7 +71,7 @@ def main():
     for f in sorted(os.listdir(D)):
         p = os.path.join(D, f)
         if f.endswith(".geojson") and f != "india.geojson": files.append(p)
-        elif os.path.isdir(p) and f != "search":
+        elif os.path.isdir(p) and f not in ("search", "find", "pages", "sitemaps"):
             files += [os.path.join(p, x) for x in sorted(os.listdir(p)) if x.endswith(".geojson")]
     a = b = 0
     for i, p in enumerate(files, 1):

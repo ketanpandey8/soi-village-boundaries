@@ -43,9 +43,12 @@ whole numbers at the precision they were rounded to, each ring stored as a start
 differences. It checks that every point decodes exactly, and cuts the data from 2.35 GB to
 0.91 GB (Uttar Pradesh: 37 MB to 18 MB, or 7 MB to 5 MB compressed).
 
-The home screen's village search reads `dist/data/search/` (`build/make_search.py`): the
-index split by the first two or three letters of the name, and by the first two digits of
-the LGD code, so each search fetches one small file.
+The home screen's village search reads `dist/data/find/` (`build/make_search.py`): the
+index split by the first two or three letters of each name's sound key, and by the first two
+digits of the LGD code, so each search fetches one small file. The sound key folds the ways
+Indian names vary in English letters (Rampur / Raampur / Ramapur, Bareilly / Bareli), and
+queries in Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada or Malayalam
+are turned into English letters first, so रामपुर finds Rampur.
 
 Bordering villages come from the full-detail boundaries (`build/make_pages.py`): two villages
 border each other when they share a stretch of surveyed boundary (at least two points).
