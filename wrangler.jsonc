@@ -18,6 +18,8 @@
 			"bucket_name": "soi-village-data"
 		}
 	],
+	// Each pull request's build gets its own workers.dev link to try before merging.
+	"preview_urls": true,
 	// Preview builds (non-main branches run `wrangler preview`) need their own bindings.
 	// They read the same bucket: the Worker only ever reads from R2, and a preview
 	// without the map data would be useless.
