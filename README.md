@@ -43,9 +43,12 @@ whole numbers at the precision they were rounded to, each ring stored as a start
 differences. It checks that every point decodes exactly, and cuts the data from 2.35 GB to
 0.91 GB (Uttar Pradesh: 37 MB to 18 MB, or 7 MB to 5 MB compressed).
 
-The home screen's village search reads `dist/data/search/` (`build/make_search.py`): the
-index split by the first two or three letters of the name, and by the first two digits of
-the LGD code, so each search fetches one small file.
+The home screen's village search reads `dist/data/find/` (`build/make_search.py`): the
+index split by the first two or three letters of each name's sound key, and by the first two
+digits of the LGD code, so each search fetches one small file. The sound key folds the ways
+Indian names vary in English letters (Rampur / Raampur / Ramapur, Bareilly / Bareli), and
+queries in Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada or Malayalam
+are turned into English letters first, so रामपुर finds Rampur.
 
 Bordering villages come from the full-detail boundaries (`build/make_pages.py`): two villages
 border each other when they share a stretch of surveyed boundary (at least two points).
@@ -58,6 +61,30 @@ lists its gaps (unnamed villages, missing or duplicate LGD codes, missing taluks
 categories) with a button to highlight them. Field names vary between state files
 (`Vill_Cat` / `Vill_cat`, `Sub_dist` / `Subdist`, `DISTRICT`, Madhya Pradesh's
 `Villl_name`), so `build/make_geojson.py` matches them case-insensitively.
+
+## Embedding
+
+`/embed/<state>/<lgd>` (or `/embed/<state>`) is the map alone, with a link to the full site,
+for other sites' iframes. The village card's Embed button copies the code:
+
+```html
+<iframe src="https://indianvillage.4080studio.com/embed/goa/626847" width="600" height="450"
+  style="border:0" loading="lazy" title="Adcolna, South Goa village map"></iframe>
+```
+
+Embed pages are marked `noindex` and point to the real page as canonical.
+
+## API
+
+Open to any site (CORS), cached at the edge for a day:
+
+| Request | Returns |
+|---|---|
+| `GET /api/village/<lgd>` | the village (or villages, when the source repeats a code): name, state, district, taluk, area, category, bordering villages, page and GeoJSON links |
+| `GET /api/village/<state>/<lgd>.geojson` | the boundary as a GeoJSON Feature with every surveyed point |
+
+Both come from the files `build/make_pages.py` writes (`pages/`, plus the district file and
+position of each village), so a rebuilt dataset updates them after `./sync-r2.sh`.
 
 ## Rebuild the data
 

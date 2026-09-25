@@ -9,7 +9,7 @@ India's boundaries meet exactly, so no tolerance is needed.
                                 indices into the display file's order (the app loads this
                                 when a village is selected)
   dist/data/pages/lgd-<ddd>.json {lgd: [[state, name, district, taluk, area, category,
-                                [[lgd, name], ...]], ...]}  for the Worker's village pages,
+                                [[lgd, name], ...], detail file, index in it], ...]}  for the Worker's village pages,
                                 split by the first three digits of the LGD code, small
                                 enough for the Worker to parse per request
   dist/data/sitemaps/           index.xml + sitemap-<n>.xml, every state and village page
@@ -61,15 +61,19 @@ def main():
         json.dump({"v": nb}, open(os.path.join(D, slug + ".nb.json"), "w"), separators=(",", ":"))
         P = disp["p"]; cat_default = (disp.get("meta") or {}).get("catDefault")
         urls.append(f"{SITE}/{slug}")
+        files = (disp.get("meta") or {}).get("detail") or {}
+        seen = defaultdict(int)                      # position of each village in its district file
         counts = defaultdict(int)
         for p in P:
             if p.get("l"): counts[p["l"]] += 1
         for i, p in enumerate(P):
+            d = p.get("d") or ""; j_in_d = seen[d]; seen[d] += 1
             l = p.get("l")
             if not l: continue
             row = [slug, p.get("n") or "", p.get("d") or "", p.get("s") or "", p.get("a"),
                    p.get("c", cat_default) or "",
-                   [[P[j].get("l") or "", P[j].get("n") or ""] for j in nb[i]]]
+                   [[P[j].get("l") or "", P[j].get("n") or ""] for j in nb[i]],
+                   files.get(d, ""), j_in_d]
             pages["lgd-" + l[:3]].setdefault(l, []).append(row)
             if counts[l] == 1: urls.append(f"{SITE}/{slug}/{l}")   # a shared code can't name one page
         alone = sum(1 for x in nb if not x)
