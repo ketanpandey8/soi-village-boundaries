@@ -2,11 +2,13 @@
 # Upload the built GeoJSON to the R2 bucket. Run once at setup, then again
 # whenever you rebuild the data. Code changes don't need this, just git push.
 #
-#   ./sync-r2.sh            # 8 uploads at a time
+#   ./sync-r2.sh            # everything, 8 uploads at a time
+#   ./sync-r2.sh search     # only keys starting with "search" (any prefix works)
 #   JOBS=4 ./sync-r2.sh     # fewer at once
 #
-# Uploads each state's display file plus its full-detail district files
-# (dist/data/<state>/<district>.geojson), keeping the same paths as keys.
+# Uploads what the app reads, keeping the same paths as keys: the India outline and
+# manifest, each state's packed display file and full-detail district files
+# (build/pack.py), and the village search index (build/make_search.py).
 set -euo pipefail
 
 BUCKET="soi-village-data"
@@ -17,7 +19,9 @@ JOBS="${JOBS:-8}"
 
 export BUCKET DIR
 log=$(mktemp)
-find "$DIR" -type f \( -name '*.geojson' -o -name 'states.json' \) | sort |
+PREFIX="${1:-}"
+find "$DIR" -type f \( -name '*.packed.json' -o -name 'india.geojson' -o -name 'states.json' \
+                     -o -path "$DIR/search/*.json" \) | sort | grep -F "$DIR/$PREFIX" |
   xargs -P "$JOBS" -I{} sh -c '
     key="${1#"$DIR"/}"
     if npx wrangler r2 object put "$BUCKET/$key" --file "$1" \

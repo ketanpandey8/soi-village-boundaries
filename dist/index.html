@@ -182,7 +182,10 @@
   #info dt{color:var(--muted)}
   #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
   #info dd.code{font-family:var(--mono);font-size:.8rem}
-  #info .acts{display:flex;justify-content:flex-end;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  #info .acts{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  .dl{font-size:.76rem;color:var(--muted)}
+  .dl .linkbtn{font-size:.76rem}
+  #distDl:empty{display:none}
   #info .share{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem}
   #info .share svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
   #info .go{margin-top:10px;color:var(--accent);font-size:.8rem;font-weight:600}
@@ -327,7 +330,7 @@
           <div class="rsum" id="resSum" role="status" aria-live="polite"></div>
           <div id="villResults" role="listbox" aria-label="Matching villages"></div>
         </div>
-        <div class="side-head" id="distHead" style="margin-top:11px"><div class="lbl" id="distLbl">Districts</div></div>
+        <div class="side-head" id="distHead" style="margin-top:11px"><div class="lbl" id="distLbl">Districts</div><span class="dl" id="distDl"></span></div>
         <div class="list" id="distList"></div>
         <div id="gapBox"></div>
       </div>
@@ -415,7 +418,7 @@
   // The live site routes by path (/goa/626863) so each link gets its own preview; opened as a
   // plain file or index.html (local dev) it falls back to #goa/626863.
   const PATHS=!/\.html$/.test(location.pathname)&&location.protocol!=="file:", ROOT=PATHS?"/":"";
-  const DATA_V="5";   // bump when dist/data is regenerated (busts CDN/browser cache)
+  const DATA_V="6";   // bump when dist/data is regenerated (busts CDN/browser cache)
 
   const svg=$("map"), world=$("world"), ctx=$("ctx"), scene=$("scene"), info=$("info"), statusEl=$("status");
   let INDIA=[], STATES=[];                 // overview outlines + manifest
@@ -530,8 +533,10 @@
       <span class="chip"><span class="dot" style="background:${distColor(p.d)}"></span>${p.d?esc(cap(p.d)):"District not in source"}</span>
       <dl><dt>Taluk</dt><dd>${p.s?esc(cap(p.s)):NR}</dd><dt>Area</dt><dd>${p.a!=null?nf(p.a)+" km²":NR}</dd>
       <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl>`+
-      (p.l?`<div class="acts"><button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button></div>`:"");
+      `<div class="acts"><span class="dl">Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button></span>`+
+      (p.l?`<button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button>`:"")+`</div>`;
     const sh=info.querySelector(".share");if(sh)sh.onclick=()=>shareVillage(i);
+    info.querySelectorAll(".dl [data-fmt]").forEach(b=>b.onclick=()=>download([i],b.dataset.fmt));
     info.classList.add("show");wireClose();}
   // phones get the system share sheet; elsewhere the link is copied
   async function shareVillage(i){const p=feats[i].properties, url=location.href;
@@ -609,6 +614,13 @@
     for(;;){const{done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;onProg(got,total);}
     const buf=new Uint8Array(got);let o=0;for(const p of parts){buf.set(p,o);o+=p.length;}
     return JSON.parse(new TextDecoder().decode(buf));}
+  // .packed.json (build/pack.py): whole-number coordinates, each ring as a start point plus
+  // differences. Decodes to the same GeoJSON features the rest of the app works with.
+  function unpack(d){const q=d.q;
+    const ring=r=>{const o=new Array(r.length/2);let x=0,y=0;
+      for(let j=0,k=0;j<r.length;j+=2,k++){x+=r[j];y+=r[j+1];o[k]=[x/q,y/q];}return o;};
+    return {meta:d.meta,features:d.p.map((p,i)=>{const ps=d.g[i].map(poly=>poly.map(ring));
+      return {type:"Feature",properties:p,geometry:ps.length===1?{type:"Polygon",coordinates:ps[0]}:{type:"MultiPolygon",coordinates:ps}};})};}
   const mb=b=>(b/1048576).toFixed(b<10485760?1:0)+" MB";
   const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
@@ -620,10 +632,10 @@
     const label="Loading "+meta.name+"…";
     statusEl.textContent=label;statusEl.classList.add("show");
     if(window.innerWidth<=860)setNav(false);
-    let data;const stateUrl=ROOT+"data/"+slug+".geojson?v="+DATA_V;
+    let data;const stateUrl=ROOT+"data/"+slug+".packed.json?v="+DATA_V;
     try{
-      data=await fetchJSON(stateUrl,(got,total)=>{if(seq!==loadSeq)return;
-        statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));});
+      data=unpack(await fetchJSON(stateUrl,(got,total)=>{if(seq!==loadSeq)return;
+        statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));}));
     }catch(e){if(seq===loadSeq){loadingSlug=null;statusEl.textContent="Could not load "+meta.name+" ("+e.message+")";}
       return false;}
     if(seq!==loadSeq)return false;                          // user moved on while this was downloading
@@ -763,7 +775,10 @@
   // ---------- village search / district filter ----------
   const villSearch=$("villSearch");
   function applyFilter(){scene.querySelectorAll("path.dist").forEach(p=>
-    p.classList.toggle("dim",activeDist&&p.dataset.d!==activeDist));scheduleLabels();}
+    p.classList.toggle("dim",activeDist&&p.dataset.d!==activeDist));scheduleLabels();
+    const dl=$("distDl");dl.innerHTML=activeDist==null?"":
+      `Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button>`;
+    dl.querySelectorAll("[data-fmt]").forEach(b=>b.onclick=()=>download(distIdx[activeDist],b.dataset.fmt));}
   function zoomToFeature(i){let a=1e9,b=1e9,c=-1e9,d=-1e9;
     eachRing(feats[i].geometry,r=>r.forEach(([lo,la])=>{const[mx,my]=merc(lo,la),X=px(mx),Y=py(my);
       if(X<a)a=X;if(X>c)c=X;if(Y<b)b=Y;if(Y>d)d=Y;}));
@@ -1109,10 +1124,10 @@
   function loadDetail(n){
     if(!detailFiles||detailState[n]||!(n in detailFiles)||!distIdx[n])return;
     const slug=curSlug,seq=loadSeq;detailState[n]="loading";detailPending++;detailChip();
-    const url=`${ROOT}data/${slug}/${detailFiles[n]}.geojson?v=${DATA_V}`;
+    const url=`${ROOT}data/${slug}/${detailFiles[n]}.packed.json?v=${DATA_V}`;
     fetch(url)
       .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
-      .then(fc=>{noteFetch(url);if(seq!==loadSeq)return;
+      .then(d=>{const fc=unpack(d);noteFetch(url);if(seq!==loadSeq)return;
         const idx=distIdx[n],F=fc.features;
         if(F.length!==idx.length||idx.some((i,j)=>(F[j].properties.l||"")!==(feats[i].properties.l||""))){
           detailState[n]="mismatch";return;}
@@ -1125,6 +1140,49 @@
         scheduleLabels();})
       .catch(()=>{if(seq===loadSeq)detailState[n]="error";})
       .finally(()=>{if(seq===loadSeq){detailPending--;detailChip();}});}
+
+  // ---------- downloads ----------
+  // Always every surveyed vertex: the district's full-detail file is fetched if it isn't on the
+  // map yet (lite mode, or zoomed out). Attributes are written out as the source has them.
+  async function fullGeometry(idx){
+    const byD={};idx.forEach(i=>{const d=feats[i].properties.d||"";(byD[d]||(byD[d]=[])).push(i);});
+    const geom={};
+    for(const n in byD){
+      if(detailState[n]==="full"||!detailFiles||!(n in detailFiles)){byD[n].forEach(i=>geom[i]=feats[i].geometry);continue;}
+      const d=await fetch(`${ROOT}data/${curSlug}/${detailFiles[n]}.packed.json?v=${DATA_V}`).then(r=>{if(!r.ok)throw 0;return r.json();});
+      const F=unpack(d).features, all=distIdx[n];
+      if(F.length!==all.length)throw 0;
+      const want=new Set(byD[n]);all.forEach((i,j)=>{if(want.has(i))geom[i]=F[j].geometry;});}
+    return idx.map(i=>geom[i]);}
+  function exportProps(p){const st=STATES.find(s=>s.slug===curSlug);
+    return {name:p.n||null,lgd_code:p.l||null,taluk:p.s||null,district:p.d||null,state:st?st.name:curSlug,
+      category:normCat("c" in p?p.c:catDefault)||null,area_km2:p.a!=null?p.a:null};}
+  const xesc=v=>String(v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  function toKML(fs,title){
+    const ring=r=>r.map(([x,y])=>x+","+y).join(" ");
+    const poly=p=>`<Polygon><outerBoundaryIs><LinearRing><coordinates>${ring(p[0])}</coordinates></LinearRing></outerBoundaryIs>`+
+      p.slice(1).map(h=>`<innerBoundaryIs><LinearRing><coordinates>${ring(h)}</coordinates></LinearRing></innerBoundaryIs>`).join("")+`</Polygon>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xesc(title)}</name>`+
+      `<description>Village boundaries © Survey of India, National Geospatial Policy 2022</description>`+
+      fs.map(f=>{const g=f.geometry,ps=g.type==="Polygon"?[g.coordinates]:g.coordinates,pr=f.properties;
+        return `<Placemark><name>${xesc(pr.name||"Unnamed ("+(pr.lgd_code||"no LGD code")+")")}</name><ExtendedData>`+
+          Object.entries(pr).filter(([,v])=>v!=null).map(([k,v])=>`<Data name="${k}"><value>${xesc(v)}</value></Data>`).join("")+
+          `</ExtendedData><MultiGeometry>${ps.map(poly).join("")}</MultiGeometry></Placemark>`;}).join("")+`</Document></kml>`;}
+  async function download(idx,fmt){
+    if(!idx||!idx.length)return;
+    let geoms;try{toast("Preparing download…");geoms=await fullGeometry(idx);}
+    catch(_){toast("Couldn't load full detail for the download. Try again.");return;}
+    const fs=idx.map((i,j)=>({type:"Feature",properties:exportProps(feats[i].properties),geometry:geoms[j]}));
+    const one=idx.length===1, p=feats[idx[0]].properties;
+    const title=one?(p.n||"Village "+(p.l||""))+", "+cap(p.d):cap(p.d)+" district villages";
+    const base=[curSlug,one?(p.l||"village"):"",one?p.n:p.d].filter(Boolean).join("-").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    const body=fmt==="kml"?toKML(fs,title):JSON.stringify({type:"FeatureCollection",
+      attribution:"Village boundaries © Survey of India, National Geospatial Policy 2022",features:fs});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([body],{type:fmt==="kml"?"application/vnd.google-earth.kml+xml":"application/geo+json"}));
+    a.download=base+(fmt==="kml"?".kml":".geojson");document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    toast(`Downloaded ${one?"1 village":nf(idx.length)+" villages"} with every surveyed point.`);}
 
   // ---------- find the village you're in ----------
   // The position stays in the browser: it's matched against the state outlines, then that
