@@ -37,11 +37,18 @@ export default {
 
     // sitemaps, built by build/make_pages.py
     const sm = url.pathname.match(/^\/sitemap(?:-(\d+))?\.xml$/);
-    if (sm) {
+    if (sm && (request.method === "GET" || request.method === "HEAD")) {
+      // kept in the edge cache so crawlers get them quickly (each is a few MB before compression)
+      const key = new Request(url.origin + url.pathname);
+      const hit = await caches.default.match(key);
+      if (hit) return request.method === "HEAD" ? new Response(null, hit) : hit;
       const obj = await env.DATA.get(sm[1] ? `sitemaps/sitemap-${sm[1]}.xml` : "sitemaps/index.xml");
       if (!obj) return new Response("Not found", { status: 404 });
-      return new Response(obj.body, { headers: {
-        "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=86400" } });
+      const res = new Response(obj.body, { headers: {
+        "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=86400",
+        "etag": obj.httpEtag, "last-modified": obj.uploaded.toUTCString() } });
+      ctx.waitUntil(caches.default.put(key, res.clone()));
+      return request.method === "HEAD" ? new Response(null, res) : res;
     }
 
     // "/" is served straight from static assets; other paths that look like a state or
