@@ -54,6 +54,19 @@ Bordering villages come from the full-detail boundaries (`build/make_pages.py`):
 border each other when they share a stretch of surveyed boundary (at least two points).
 Survey of India's boundaries meet exactly, so this needs no tolerance.
 
+Taluk and district boundary lines come from the same edges (`build/make_lines.py`): a
+village edge is a taluk or district boundary when the village across it is in a different
+one. They sit exactly on the village boundaries and use the names the app shows; Survey of
+India's separate district and sub-district layers don't line up with the village edges.
+
+## Languages
+
+The interface is in English or Hindi (the EN / हिं button, `?lang=hi`, or the browser's
+language). Every visible string goes through `L()` in `build/app.html`, with Hindi in the `HI`
+table and state names in `STATE_HI`; fixed page text is marked `data-l` (text), `data-la`
+(aria-label, title, placeholder) or `data-lh` (a block of HTML, keyed `html:<name>`). Village,
+taluk and district names stay as the source spells them.
+
 ### What the source leaves out
 
 The app shows the source as released. Blank fields read "not in source", and each state
@@ -100,6 +113,7 @@ python3 build/make_india.py     # dissolve state outlines + per-state stats -> d
 python3 build/pack.py           # the smaller .packed.json files the app downloads
 python3 build/make_search.py    # all-India village search index
 python3 build/make_pages.py     # bordering villages, village page data, sitemaps
+python3 build/make_lines.py     # taluk and district boundary lines
 python3 build/make_cards.py     # link preview images (needs Pillow), then commit dist/cards/
 python3 data/check_release.py --write   # record which SoI release this was built from
 ```
