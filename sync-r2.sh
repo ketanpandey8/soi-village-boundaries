@@ -8,7 +8,8 @@
 #
 # Uploads what the app reads, keeping the same paths as keys: the India outline and
 # manifest, each state's packed display file and full-detail district files
-# (build/pack.py), and the village search index (build/make_search.py).
+# (build/pack.py), the village search index (build/make_search.py), and the bordering
+# villages, village page data and sitemaps (build/make_pages.py).
 set -euo pipefail
 
 BUCKET="soi-village-data"
@@ -21,11 +22,13 @@ export BUCKET DIR
 log=$(mktemp)
 PREFIX="${1:-}"
 find "$DIR" -type f \( -name '*.packed.json' -o -name 'india.geojson' -o -name 'states.json' \
-                     -o -path "$DIR/search/*.json" \) | sort | grep -F "$DIR/$PREFIX" |
+                     -o -name '*.nb.json' -o -path "$DIR/search/*.json" -o -path "$DIR/pages/*.json" \
+                     -o -path "$DIR/sitemaps/*.xml" \) | sort | grep -F "$DIR/$PREFIX" |
   xargs -P "$JOBS" -I{} sh -c '
     key="${1#"$DIR"/}"
+    case "$1" in *.xml) type=application/xml ;; *) type=application/json ;; esac
     if npx wrangler r2 object put "$BUCKET/$key" --file "$1" \
-         --content-type application/json --remote >/dev/null 2>&1
+         --content-type "$type" --remote >/dev/null 2>&1
     then echo "ok   $key"; else echo "FAIL $key"; fi' _ {} | tee "$log"
 
 ok=$(grep -c '^ok' "$log" || true); fail=$(grep -c '^FAIL' "$log" || true); rm -f "$log"

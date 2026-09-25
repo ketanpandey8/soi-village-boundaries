@@ -1,5 +1,5 @@
-// Serves the static app, proxies /data/* from the R2 bucket, and gives state and village pages
-// (/goa, /goa/626863) their own title and link preview.
+// Serves the static app, proxies /data/* from the R2 bucket, gives state and village pages
+// (/goa, /goa/626863) their own title, link preview and text, and serves the sitemaps.
 //
 // Worker responses aren't cached by Cloudflare's CDN automatically, so without the
 // Cache API every request streams the file out of R2 again (UP is ~41 MB raw). The
@@ -35,6 +35,15 @@ export default {
       return res;
     }
 
+    // sitemaps, built by build/make_pages.py
+    const sm = url.pathname.match(/^\/sitemap(?:-(\d+))?\.xml$/);
+    if (sm) {
+      const obj = await env.DATA.get(sm[1] ? `sitemaps/sitemap-${sm[1]}.xml` : "sitemaps/index.xml");
+      if (!obj) return new Response("Not found", { status: 404 });
+      return new Response(obj.body, { headers: {
+        "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=86400" } });
+    }
+
     // "/" is served straight from static assets; other paths that look like a state or
     // village page get the app with that page's preview tags
     const m = url.pathname.match(PAGE);
@@ -59,26 +68,40 @@ async function r2json(env, key) {
 }
 const cap = s => String(s || "").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const num = n => Number(n).toLocaleString("en-IN");
+
 async function page(env, url, slug, lgd) {
   const states = await r2json(env, "states.json");
   const st = states && states.find(s => s.slug === slug);
   if (!st) return null;
   const origin = "https://" + url.host;
   let title = `${st.name} villages`;
-  let desc = (st.villages ? `${st.villages.toLocaleString("en-IN")} village boundaries` : "Every village boundary") +
+  let desc = (st.villages ? `${num(st.villages)} village boundaries` : "Every village boundary") +
     ` in ${st.name}, from the Survey of India. Search any village by name or LGD code.`;
   let path = `/${slug}`;
+  let body = `<h1>Villages of ${esc(st.name)}</h1><p>${esc(desc)}</p><p><a href="/">All of India</a></p>`;
 
   if (lgd && /^\d+$/.test(lgd)) {
-    // the search index is split by the first two digits of the LGD code (build/make_search.py)
-    const ix = await r2json(env, `search/lgd-${lgd.slice(0, 2)}.json`);
-    const v = ix && ix.v.find(r => r[4] === lgd && ix.s[r[1]] === slug);
+    // village page data, split by the first three digits of the LGD code (build/make_pages.py)
+    const ix = await r2json(env, `pages/lgd-${lgd.slice(0, 3)}.json`);
+    const v = ix && (ix[lgd] || []).find(r => r[0] === slug);
     if (v) {
-      const [name, , d, t] = v, dist = cap(ix.d[d]), taluk = cap(ix.t[t]);
+      const [, name, d, t, area, cat, nbrs] = v, dist = cap(d), taluk = cap(t);
       const where = [taluk && `${taluk} taluk`, dist && `${dist} district`, st.name].filter(Boolean).join(", ");
-      title = name ? `${name}, ${dist || st.name}` : `Village ${lgd}, ${dist || st.name}`;
-      desc = `Boundary of ${name || "an unnamed village"} in ${where}. LGD code ${lgd}. Survey of India data.`;
+      const nm = name || `Village ${lgd}`;
+      title = `${nm}, ${dist || st.name}`;
+      desc = `Boundary of ${name || "an unnamed village"} in ${where}. LGD code ${lgd}.` +
+        (area != null ? ` Area ${area} km².` : "") +
+        (nbrs.length ? ` Borders ${nbrs.slice(0, 3).map(n => n[1] || n[0]).join(", ")}${nbrs.length > 3 ? " and more" : ""}.` : "") +
+        " Survey of India data.";
       path = `/${slug}/${lgd}`;
+      const link = ([l, n]) => l ? `<a href="/${slug}/${esc(l)}">${esc(n || "Village " + l)}</a>` : esc(n || "an unnamed village");
+      body = `<h1>${esc(nm)} village, ${esc(dist || st.name)}</h1>` +
+        `<p>${esc(nm)} is a village in ${esc(where)}. Its LGD code is ${esc(lgd)}` +
+        (area != null ? ` and it covers ${esc(area)} km²` : "") + (cat ? `. Category: ${esc(cat)}` : "") + `.</p>` +
+        (nbrs.length ? `<p>Bordering villages: ${nbrs.map(link).join(", ")}.</p>` : "") +
+        `<p>Boundary from the Survey of India village boundary database. <a href="/${slug}">All villages in ${esc(st.name)}</a></p>`;
     }
   }
 
@@ -90,8 +113,11 @@ async function page(env, url, slug, lgd) {
     set('meta[name="description"]', desc),
     set('meta[property="og:url"]', origin + path),
     set('meta[property="og:image"]', `${origin}/cards/${slug}.png`),
+    ["href", origin + path, 'link[rel="canonical"]'],
   ];
-  let rw = new HTMLRewriter().on("title", { element: e => e.setInnerContent(`${title} · ${SITE}`) });
+  let rw = new HTMLRewriter()
+    .on("title", { element: e => e.setInnerContent(`${title} · ${SITE}`) })
+    .on("#seo", { element: e => e.setInnerContent(body, { html: true }) });
   for (const [attr, v, sel] of tags) rw = rw.on(sel, { element: e => e.setAttribute(attr, v) });
   const res = rw.transform(app);
   const headers = new Headers(res.headers);

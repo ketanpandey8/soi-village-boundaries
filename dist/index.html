@@ -12,6 +12,7 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://indianvillage.4080studio.com/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -102,6 +103,7 @@
   .backbtn:hover{border-color:var(--accent);color:var(--accent)}
   .backbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   #stateSec{display:none}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .note{flex:none;margin:10px 2px 0;font-size:.7rem;line-height:1.45;color:var(--muted)}
 
   /* village search results replace the district list while a query is typed */
@@ -182,6 +184,11 @@
   #info dt{color:var(--muted)}
   #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
   #info dd.code{font-family:var(--mono);font-size:.8rem}
+  #info .nbrs{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:.8rem;line-height:1.5}
+  #info .nbrs:empty{display:none}
+  #info .nbrs .lbl{display:block;margin-bottom:2px}
+  #info .nbrs .linkbtn{font-weight:500;font-size:.8rem}
+  #info .nbrs .od{color:var(--muted)}
   #info .acts{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
   .dl{font-size:.76rem;color:var(--muted)}
   .dl .linkbtn{font-size:.76rem}
@@ -293,6 +300,9 @@
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
+<!-- filled by src/worker.js on state and village pages: a plain-text summary for search
+     engines and screen readers (the map itself is drawn by script) -->
+<div id="seo" class="sr-only"><h1>Every village boundary in India</h1><p>An interactive map of the 586,164 village boundaries the Survey of India has published, across 27 states and union territories. Search any village by name or LGD code, see which villages border it, and download its boundary.</p></div>
 <div id="app">
   <div id="topbar">
     <button id="menuBtn" aria-label="States and districts" aria-expanded="false" aria-controls="sidebar"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
@@ -532,12 +542,33 @@
       <p class="vname">${p.n?esc(p.n):'<span class="nr">Name not in source</span>'}</p>
       <span class="chip"><span class="dot" style="background:${distColor(p.d)}"></span>${p.d?esc(cap(p.d)):"District not in source"}</span>
       <dl><dt>Taluk</dt><dd>${p.s?esc(cap(p.s)):NR}</dd><dt>Area</dt><dd>${p.a!=null?nf(p.a)+" km²":NR}</dd>
-      <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl>`+
+      <dt>LGD code</dt><dd class="code">${p.l?esc(p.l):NR}</dd>${catRow}</dl><div class="nbrs"></div>`+
       `<div class="acts"><span class="dl">Download <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button></span>`+
       (p.l?`<button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button>`:"")+`</div>`;
     const sh=info.querySelector(".share");if(sh)sh.onclick=()=>shareVillage(i);
     info.querySelectorAll(".dl [data-fmt]").forEach(b=>b.onclick=()=>download([i],b.dataset.fmt));
+    if(i===selI)showNeighbours(i);
     info.classList.add("show");wireClose();}
+  // Bordering villages: worked out at build time from the full-detail boundaries (villages
+  // that share a stretch of surveyed boundary, build/make_pages.py), loaded on first use.
+  const nbFiles={}, NB_SHOW=8;
+  function nbFile(slug){return nbFiles[slug]||(nbFiles[slug]=fetch(`${ROOT}data/${slug}.nb.json?v=${DATA_V}`)
+    .then(r=>{if(!r.ok)throw 0;return r.json();}).then(d=>d.v).catch(()=>{delete nbFiles[slug];return null;}));}
+  async function showNeighbours(i){const slug=curSlug, nb=await nbFile(slug);
+    const box=info.querySelector(".nbrs");
+    if(!nb||!box||slug!==curSlug||selI!==i||nb.length!==feats.length)return;
+    const d=feats[i].properties.d, list=nb[i].slice().sort((a,b)=>(feats[a]._n||"~").localeCompare(feats[b]._n||"~"));
+    if(!list.length){box.innerHTML=`<span class="lbl">Bordering villages</span>None in this data. It may be on the coast, a state border or next to a town.`;return;}
+    const item=j=>{const q=feats[j].properties;
+      return `<button class="linkbtn" data-j="${j}">${q.n?esc(q.n):"Unnamed"+(q.l?" ("+esc(q.l)+")":"")}</button>`+
+        (q.d!==d?` <span class="od">(${esc(cap(q.d||"no district"))})</span>`:"");};
+    const render=all=>{box.innerHTML=`<span class="lbl"><b>${list.length}</b> bordering ${list.length===1?"village":"villages"}</span>`+
+      (all?list:list.slice(0,NB_SHOW)).map(item).join(", ")+
+      (!all&&list.length>NB_SHOW?`, <button class="linkbtn more">+${list.length-NB_SHOW} more</button>`:"");
+      box.querySelectorAll("[data-j]").forEach(b=>{const j=+b.dataset.j;
+        b.onclick=()=>setSelect(j,true);b.onmouseenter=()=>hoverVillage(j);b.onmouseleave=()=>hoverVillage(-1);});
+      const m=box.querySelector(".more");if(m)m.onclick=()=>render(true);};
+    render(false);}
   // phones get the system share sheet; elsewhere the link is copied
   async function shareVillage(i){const p=feats[i].properties, url=location.href;
     const title=(p.n||"Village "+p.l)+(p.d?", "+cap(p.d):"");
