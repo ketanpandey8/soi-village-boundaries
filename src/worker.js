@@ -18,9 +18,17 @@ export default {
       if (request.method !== "GET" && request.method !== "HEAD")
         return new Response("Method not allowed", { status: 405, headers: { allow: "GET, HEAD" } });
 
+      // Open to any origin: an embed inside a sandboxed frame (many HTML editors' previews)
+      // runs with origin "null", so even its own /data/ fetches count as cross-origin.
       const cache = caches.default;
       const hit = await cache.match(request);
-      if (hit) return hit;
+      if (hit) {                                      // entries cached before this header existed lack it
+        if (hit.headers.get("access-control-allow-origin")) return hit;
+        const res = new Response(hit.body, hit);
+        res.headers.set("access-control-allow-origin", "*");
+        res.headers.set("access-control-expose-headers", "x-raw-size");
+        return res;
+      }
 
       const key = decodeURIComponent(url.pathname.slice("/data/".length));
       const obj = await env.DATA.get(key);
@@ -33,6 +41,8 @@ export default {
       headers.set("cache-control", "public, max-age=31536000, immutable");
       // decoded size, for the loading percentage (content-length is the compressed size)
       headers.set("x-raw-size", String(obj.size));
+      headers.set("access-control-allow-origin", "*");
+      headers.set("access-control-expose-headers", "x-raw-size");
       const res = new Response(obj.body, { headers });
       if (request.method === "GET") ctx.waitUntil(cache.put(request, res.clone()));
       return res;
