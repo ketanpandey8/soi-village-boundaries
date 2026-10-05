@@ -1,4 +1,13 @@
-User-agent: *
-Allow: /
+# Every page here runs on a Worker with a shared daily request quota,
+# so crawlers must pace themselves: one request per 10 seconds.
+User-agent: ClaudeBot
+Crawl-delay: 10
 
-Sitemap: https://indianvillage.4080studio.com/sitemap.xml
+User-agent: AhrefsBot
+Crawl-delay: 10
+
+User-agent: AhrefsSiteAudit
+Crawl-delay: 10
+
+User-agent: *
+Crawl-delay: 10
