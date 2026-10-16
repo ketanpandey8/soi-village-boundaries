@@ -9,8 +9,8 @@
 # Uploads what the app reads, keeping the same paths as keys: the India outline and
 # manifest, each state's packed display file and full-detail district files
 # (build/pack.py), the village search index (build/make_search.py), and the bordering
-# villages, village page data and sitemaps (build/make_pages.py), and taluk and district
-# boundary lines (build/make_lines.py).
+# villages, village page data and sitemaps (build/make_pages.py), taluk and district
+# boundary lines (build/make_lines.py), and Census 2011 population (build/make_pop.py).
 set -euo pipefail
 
 BUCKET="soi-village-data"
@@ -23,7 +23,7 @@ export BUCKET DIR
 log=$(mktemp)
 PREFIX="${1:-}"
 find "$DIR" -type f \( -name '*.packed.json' -o -name 'india.geojson' -o -name 'states.json' \
-                     -o -name '*.nb.json' -o -name '*.lines.json' -o -path "$DIR/find/*.json" -o -path "$DIR/pages/*.json" \
+                     -o -name '*.nb.json' -o -name '*.lines.json' -o -name '*.pop.json' -o -path "$DIR/find/*.json" -o -path "$DIR/pages/*.json" \
                      -o -path "$DIR/sitemaps/*.xml" \) | sort | grep -F "$DIR/$PREFIX" |
   xargs -P "$JOBS" -I{} sh -c '
     key="${1#"$DIR"/}"
