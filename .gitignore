@@ -17,3 +17,6 @@ dist/data/
 # OS / editor cruft
 .DS_Store
 __pycache__/
+
+# Census 2011 village tables (~60 MB per big state). Restore with data/census_download.py
+data/census/
