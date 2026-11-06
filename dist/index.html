@@ -838,6 +838,9 @@ if (location.hostname === "indianvillage.4080studio.com") {
   if(GL&&!EMBED)$("qualityGrp").hidden=true;              // detail levels are the SVG map's; tiles are always full detail
   let gl=null, glSlug=null, glMeta=null, glLib=null, glOpening=null, glReady=false;   // glReady: the style's layers exist
   const GL_LIB=ROOT+"lib/maplibre-gl-4.7.1/maplibre-gl";       // MapLibre GL, hosted here (dist/lib)
+  // tile addresses: "b" since tiles came out of the edge cache gzipped twice (fixed in the Worker),
+  // so neither the edge nor browsers reuse those broken copies, which were cached for a year
+  const TILES_V=DATA_V+"b";
   function loadGLLib(){return glLib||(glLib=new Promise((res,rej)=>{
     const css=document.createElement("link");css.rel="stylesheet";css.href=GL_LIB+".css";document.head.appendChild(css);
     const sc=document.createElement("script");sc.src=GL_LIB+".js";sc.onload=res;
@@ -853,7 +856,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
   function glStyle(slug){const c=glColours(),font=["noto-sans-medium"],v={source:"v"},vil={...v,"source-layer":"villages",minzoom:9};
     return {version:8,glyphs:location.origin+ROOT+"lib/glyphs/{fontstack}/{range}.pbf",
       // tiles come one by one from the Worker, which reads them out of the state's archive in R2
-      sources:{v:{type:"vector",tiles:[`${location.origin}${ROOT}tiles/${slug}/{z}/{x}/{y}.pbf?v=${DATA_V}`],
+      sources:{v:{type:"vector",tiles:[`${location.origin}${ROOT}tiles/${slug}/{z}/{x}/{y}.pbf?v=${TILES_V}`],
         minzoom:5,maxzoom:14,bounds:glMeta.bbox},
         india:{type:"geojson",data:{type:"FeatureCollection",features:INDIA.map((f,i)=>({type:"Feature",id:i,properties:{},geometry:f.geometry}))}}},
       layers:[
