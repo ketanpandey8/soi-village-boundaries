@@ -14,12 +14,12 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://indianvillage.4080studio.com/">
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0e7c86">
+<meta name="theme-color" content="#f7f7f9">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<!-- the India overview opens with the phone sheet at its peek height; set before the first paint
+     so the sheet doesn't jump down once the script runs -->
+<script>if(/^\/(index\.html)?$/.test(location.pathname)&&!/^#./.test(location.hash))document.documentElement.classList.add("home");</script>
 <!-- PostHog analytics, on the live site only (not local or PR previews). Pageviews follow
      the app's pushState navigation between states and villages. Sent via /relay/*, which
      src/worker.js forwards to PostHog. -->
@@ -35,310 +35,372 @@ if (location.hostname === "indianvillage.4080studio.com") {
 }
 </script>
 <style>
+  /* Native: laid out like a system maps app. The map fills the window. One sheet holds the
+     place title, search, the state and district lists and, when a village is picked, its card
+     in place of the lists. Desktop: the sheet floats at the top left and the map is fitted
+     beside it. Phones: it is a bottom sheet with three heights. Settings live in one menu. */
   :root{
-    --bg:#f6f3ee; --panel:#fffdf9; --ink:#1a1e22; --muted:#6b6862;
-    --line:#e4ddd2; --line-strong:#c9c0b1; --accent:#0e7c86; --accent-ink:#0a5157;
-    --map-bg:#eef0ec; --map-sea:#dce8ea; --boundary:#b9b3a7; --ctx:#cfc7b8;
-    --shadow:0 1px 2px rgba(40,34,24,.06),0 8px 24px rgba(40,34,24,.12);
+    --bg:#f2f2f7; --panel:#ffffff; --ink:#1c1c1e; --muted:#636366;
+    --line:#d1d1d6; --accent:#0068d9; --link:#0062cc; --on-accent:#ffffff;
+    --map-bg:#f2f1ec; --map-sea:#cfe3ef; --boundary:#a39d8f; --ctx:#d6d2c8;
+    --material:rgba(249,249,251,.88); --fill:rgba(118,118,128,.12); --sel:rgba(0,104,217,.12); --ring:rgba(0,0,0,.12); --scrim:rgba(0,0,0,.35); --fill-2:rgba(118,118,128,.2);
+    --shadow:0 1px 3px rgba(0,0,0,.08),0 10px 32px rgba(0,0,0,.14);
     --c-others:#9a938a;
-    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sheet-w:340px; --peek:0px;
+    /* map fills: the 16 palette hues as light tints here, deep shades in dark mode (same order as PALETTE) */
+    --p0:#aac2a8; --p1:#dbbe8f; --p2:#d8a492; --p3:#9dc5cd; --p4:#b2a6c4; --p5:#cd9eaf; --p6:#a4c6b4; --p7:#d2bf98; --p8:#8aa7e0; --p9:#d4ad96; --p10:#a4c6c0; --p11:#cea79d; --p12:#bacc9f; --p13:#b7a0ca; --p14:#9dc6ce; --p15:#caa0b3;
+    --g:16px; --hov:8px;
+    /* one type scale and one corner scale for every control and surface */
+    --fs-xs:.75rem; --fs-s:.8125rem; --fs-m:.9375rem; --fs-l:1rem; --fs-stat:1.2rem; --fs-title:1.5rem;
+    --r-xs:4px; --r-s:6px; --r-m:10px; --r-l:14px;              /* text gutter inside the sheet; list hover tints reach --hov from the edge */
   }
   @media (prefers-color-scheme:dark){:root{
-    --bg:#14171a; --panel:#1d2125; --ink:#ece7de; --muted:#9a948a;
-    --line:#2c3138; --line-strong:#3c434b; --accent:#4fc4ce; --accent-ink:#bfeef2;
-    --map-bg:#1a1f22; --map-sea:#17282b; --boundary:#4a5158; --ctx:#3a424a;
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.5); --c-others:#8f8880;}}
+    --bg:#2c2c2e; --panel:#1c1c1e; --ink:#f2f2f7; --muted:#bebec5;
+    --line:#3a3a3c; --accent:#1a72e8; --link:#6db5ff; --on-accent:#ffffff;
+    --map-bg:#26272a; --map-sea:#1b2833; --boundary:#74757b; --ctx:#3a3b3f;
+    --material:rgba(36,36,38,.88); --fill:rgba(118,118,128,.18); --sel:rgba(90,169,255,.18); --ring:rgba(255,255,255,.14); --scrim:rgba(0,0,0,.55); --fill-2:rgba(118,118,128,.3);
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 12px 36px rgba(0,0,0,.5); --c-others:#8f8880;
+    --p0:#415a3f; --p1:#735626; --p2:#703b29; --p3:#345d65; --p4:#4a3d5c; --p5:#653447; --p6:#3b5e4c; --p7:#6b572e; --p8:#203e79; --p9:#6c442d; --p10:#3b5e57; --p11:#663d33; --p12:#526435; --p13:#4f3762; --p14:#335e66; --p15:#62374a;}}
   :root[data-theme="light"]{
-    --bg:#f6f3ee; --panel:#fffdf9; --ink:#1a1e22; --muted:#6b6862;
-    --line:#e4ddd2; --line-strong:#c9c0b1; --accent:#0e7c86; --accent-ink:#0a5157;
-    --map-bg:#eef0ec; --map-sea:#dce8ea; --boundary:#b9b3a7; --ctx:#cfc7b8;
-    --shadow:0 1px 2px rgba(40,34,24,.06),0 8px 24px rgba(40,34,24,.12); --c-others:#9a938a;}
+    --bg:#f2f2f7; --panel:#ffffff; --ink:#1c1c1e; --muted:#636366;
+    --line:#d1d1d6; --accent:#0068d9; --link:#0062cc; --on-accent:#ffffff;
+    --map-bg:#f2f1ec; --map-sea:#cfe3ef; --boundary:#a39d8f; --ctx:#d6d2c8;
+    --material:rgba(249,249,251,.88); --fill:rgba(118,118,128,.12); --sel:rgba(0,104,217,.12); --ring:rgba(0,0,0,.12); --scrim:rgba(0,0,0,.35); --fill-2:rgba(118,118,128,.2);
+    --shadow:0 1px 3px rgba(0,0,0,.08),0 10px 32px rgba(0,0,0,.14); --c-others:#9a938a;
+    --p0:#aac2a8; --p1:#dbbe8f; --p2:#d8a492; --p3:#9dc5cd; --p4:#b2a6c4; --p5:#cd9eaf; --p6:#a4c6b4; --p7:#d2bf98; --p8:#8aa7e0; --p9:#d4ad96; --p10:#a4c6c0; --p11:#cea79d; --p12:#bacc9f; --p13:#b7a0ca; --p14:#9dc6ce; --p15:#caa0b3;}
   :root[data-theme="dark"]{
-    --bg:#14171a; --panel:#1d2125; --ink:#ece7de; --muted:#9a948a;
-    --line:#2c3138; --line-strong:#3c434b; --accent:#4fc4ce; --accent-ink:#bfeef2;
-    --map-bg:#1a1f22; --map-sea:#17282b; --boundary:#4a5158; --ctx:#3a424a;
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.5); --c-others:#8f8880;}
+    --bg:#2c2c2e; --panel:#1c1c1e; --ink:#f2f2f7; --muted:#bebec5;
+    --line:#3a3a3c; --accent:#1a72e8; --link:#6db5ff; --on-accent:#ffffff;
+    --map-bg:#26272a; --map-sea:#1b2833; --boundary:#74757b; --ctx:#3a3b3f;
+    --material:rgba(36,36,38,.88); --fill:rgba(118,118,128,.18); --sel:rgba(90,169,255,.18); --ring:rgba(255,255,255,.14); --scrim:rgba(0,0,0,.55); --fill-2:rgba(118,118,128,.3);
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 12px 36px rgba(0,0,0,.5); --c-others:#8f8880;
+    --p0:#415a3f; --p1:#735626; --p2:#703b29; --p3:#345d65; --p4:#4a3d5c; --p5:#653447; --p6:#3b5e4c; --p7:#6b572e; --p8:#203e79; --p9:#6c442d; --p10:#3b5e57; --p11:#663d33; --p12:#526435; --p13:#4f3762; --p14:#335e66; --p15:#62374a;}
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;overscroll-behavior:none}
-  body{font-family:var(--sans);color:var(--ink);background:var(--bg);
+  body{font-family:var(--sans);color:var(--ink);background:var(--map-bg);
     -webkit-font-smoothing:antialiased;overflow:hidden}
+  ::selection{background:var(--sel)}
   #app{display:flex;flex-direction:column;height:100dvh}
+  .ic{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  button{-webkit-tap-highlight-color:transparent}
+  :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  /* Devanagari: letter spacing and capitals break its joined letters */
+  :root:lang(hi) .lbl,:root:lang(hi) #labels .di{letter-spacing:0;text-transform:none}
 
-  /* top bar */
-  #topbar{flex:none;display:flex;align-items:center;gap:.7rem;padding:.55rem .9rem;
-    border-bottom:1px solid var(--line);background:var(--panel);z-index:30}
-  #menuBtn{display:none;width:34px;height:34px;border:1px solid var(--line);background:var(--bg);
-    color:var(--ink);border-radius:9px;cursor:pointer;place-items:center}
-  .ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
-  #topbar h1{font-weight:600;font-size:1rem;letter-spacing:-.005em;margin:0;white-space:nowrap}
-  #crumb{color:var(--muted);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #crumb b{color:var(--ink);font-weight:600}
-  #upBtn{display:none;align-items:center;gap:.2rem;height:34px;padding:0 .6rem 0 .35rem;border:1px solid var(--line);
-    background:var(--bg);color:var(--ink);border-radius:9px;font:inherit;font-size:.82rem;font-weight:500;cursor:pointer;flex:none}
-  #upBtn:hover{border-color:var(--accent);color:var(--accent)}
-  #aboutBtn{margin-left:auto;flex:none;height:34px;display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);background:var(--bg);color:var(--muted);
-    border-radius:9px;font:inherit;font-size:.76rem;padding:0 .7rem;cursor:pointer;white-space:nowrap}
-  #aboutBtn:hover{border-color:var(--accent);color:var(--accent)}
-  #aboutBtn .short{display:none}
-  #themeBtn{width:34px;height:34px;border:1px solid var(--line);background:var(--bg);color:var(--ink);
-    border-radius:9px;cursor:pointer;display:grid;place-items:center;flex:none}
-  #langBtn{height:34px;min-width:34px;padding:0 .5rem;border:1px solid var(--line);background:var(--bg);color:var(--ink);
-    border-radius:9px;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer}
-  #themeBtn:hover,#menuBtn:hover,#langBtn:hover{border-color:var(--accent);color:var(--accent)}
+  /* ---- shared controls: every button in the app is one of these ---- */
+  /* text button: a blue label (and optional icon) with no box; secondary actions in lists and overlays */
+  .tbtn{display:inline-flex;align-items:center;gap:4px;margin:-4px -8px;padding:4px 8px;border:none;border-radius:var(--r-m);background:none;
+    font:inherit;font-size:inherit;font-weight:400;color:var(--link);cursor:pointer;white-space:nowrap}
+  .tbtn:hover{background:var(--fill)}
+  .tbtn[aria-pressed="true"],.tbtn[aria-expanded="true"]{background:var(--sel)}
+  .tbtn .ic{width:16px;height:16px}
+  /* round close button: card, About, notices */
+  .xbtn{flex:none;width:28px;height:28px;padding:0;border:none;border-radius:50%;background:var(--fill);color:var(--muted);cursor:pointer;display:grid;place-items:center}
+  .xbtn:hover{background:var(--fill-2);color:var(--ink)}
+  .xbtn .ic{width:13px;height:13px;stroke-width:2.4}
+  /* filled button: the one primary action on a surface */
+  .pbtn{flex:none;border:none;border-radius:var(--r-m);background:var(--accent);color:var(--on-accent);font:inherit;font-size:var(--fs-s);font-weight:600;cursor:pointer}
+  .pbtn:hover{filter:brightness(1.08)}
+  /* choice button: a tinted tile for picking one of a few options (download formats) */
+  .cbtn{min-height:38px;padding:0 12px;border:none;border-radius:var(--r-m);background:var(--fill);color:var(--ink);font:inherit;font-size:var(--fs-m);font-weight:600;cursor:pointer}
+  .cbtn:hover{background:var(--fill-2)}
+  /* section label (muted, regular) and overlay title (ink, semibold) */
+  .lbl{font-size:var(--fs-s);font-weight:400;color:var(--muted);margin:0}
+  .pop h2,#about h3{margin:0 0 8px;font-size:var(--fs-m);font-weight:600;color:var(--ink)}
 
   #body{flex:1;display:flex;position:relative;min-height:0}
 
-  /* sidebar: a slightly deeper neutral than the content surface */
-  #sidebar{width:288px;flex:none;background:color-mix(in srgb,var(--panel) 93%,var(--ink) 7%);
-    border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;z-index:25}
-  .side-sec{padding:13px 13px 12px;display:flex;flex-direction:column;min-height:0}
-  .side-sec.grow{flex:1;overflow:hidden}
-  .side-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px}
-  .lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0}
-  .lbl b{color:var(--ink);font-weight:600}
-  .field{position:relative;flex:none}
-  .field input{width:100%;padding:.5rem .6rem .5rem 1.9rem;font:inherit;font-size:.88rem;color:var(--ink);
-    background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;outline:none}
-  .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  /* ---- the sheet ---- */
+  #sidebar{position:absolute;top:10px;left:10px;width:var(--sheet-w);max-height:calc(100% - 20px);z-index:25;
+    background:var(--material);-webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6);
+    border-radius:var(--r-l);box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  #grab{display:none}
+  .sheet-head{flex:none;display:flex;align-items:flex-start;gap:8px;padding:14px 12px 12px var(--g)}
+  .sheet-head .ttl{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  #backBtn{display:none;align-self:flex-start;margin:-4px -8px 4px;font-size:var(--fs-m)}
+  #backBtn .ic{width:18px;height:18px;stroke-width:2.4;margin-left:-4px}
+  #app.in-state #backBtn{display:inline-flex}
+  #crumb{display:flex;flex-direction:column;gap:2px;min-width:0;margin:0;font-weight:400}
+  #crumb b{font-size:var(--fs-title);line-height:1.2;font-weight:700;text-wrap:balance}
+  #crumb .meta{font-size:var(--fs-m);color:var(--muted)}
+  /* a state's size as three figures: number over label */
+  #stats{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:4px 28px}
+  .trow{display:flex;align-items:center;gap:6px;min-width:0}
+  #statsBtn{flex:none;width:28px;height:28px;padding:0;border:none;border-radius:50%;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+  #statsBtn[hidden]{display:none}
+  #statsBtn:hover,#statsBtn[aria-expanded="true"]{background:var(--fill);color:var(--ink)}
+  #statsBtn .ic{width:18px;height:18px}
+  #stats div{display:flex;flex-direction:column;gap:1px}
+  #stats b{font-size:var(--fs-stat);line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums}
+  #stats span{font-size:var(--fs-s);color:var(--muted)}
+  #moreBtn{flex:none;width:32px;height:32px;margin-top:-2px;border:none;border-radius:50%;background:var(--fill);color:var(--ink);
+    display:grid;place-items:center;cursor:pointer}
+  #moreBtn:hover{background:var(--fill-2)}
+  .side-sec{padding:0 var(--hov) 10px;display:flex;flex-direction:column;min-height:0;flex:1 1 auto;overflow:hidden}
+  .side-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:16px calc(var(--g) - var(--hov)) 6px}
+  .lbl b{font-weight:400}
+  .field{position:relative;flex:none;margin:0 calc(var(--g) - var(--hov))}
+  .field input{width:100%;height:38px;padding:0 .7rem 0 2.05rem;font:inherit;font-size:var(--fs-l);color:var(--ink);
+    background:var(--fill);border:none;border-radius:var(--r-m);outline:none;-webkit-appearance:none;appearance:none}
+  .field input:focus{box-shadow:0 0 0 3px var(--sel)}
   .field input::placeholder{color:var(--muted)}
-  .field svg{position:absolute;left:.55rem;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2}
-  .list{margin-top:9px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;-webkit-overflow-scrolling:touch}
-  .row{display:flex;align-items:center;gap:.55rem;padding:.4rem .5rem;border-radius:8px;cursor:pointer;
-    user-select:none;font-size:.875rem;line-height:1.2;transition:background .12s}
-  .row:hover{background:var(--bg)}
-  .row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-  .row .sw{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
+  .field svg{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);fill:none;stroke-width:2.2}
+  .list{margin-top:8px;overflow-y:auto;display:flex;flex-direction:column;-webkit-overflow-scrolling:touch;min-height:0}
+  .row{display:flex;align-items:center;gap:.65rem;min-height:40px;padding:.45rem calc(var(--g) - var(--hov));border-radius:var(--r-m);cursor:pointer;
+    user-select:none;font-size:var(--fs-m);line-height:1.25;transition:background .12s}
+  .row:hover{background:var(--fill)}
+  .row:focus-visible{outline-offset:-2px}
+  .row .sw{width:12px;height:12px;border-radius:var(--r-xs);flex:none;box-shadow:inset 0 0 0 1px var(--ring)}
   .row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .row .ct{font-family:var(--mono);font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
-  .row.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-ink);font-weight:600}
-  .row.active .ct{color:var(--accent-ink)}
-  .row.selrow{background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:inset 0 0 0 1px var(--accent)}
-  .row.nodata{cursor:default;opacity:.6}
+  .row .ct{font-size:var(--fs-s);color:var(--muted);font-variant-numeric:tabular-nums}
+  /* selected, current or keyboard-highlighted rows all use the same tint */
+  .row.active,.row.selrow{background:var(--sel)}
+  .row.active{font-weight:600}
+  .row.nodata{cursor:default;color:var(--muted)}
   .row.nodata:hover{background:transparent}
-  .ct.nodat{font-family:var(--sans);font-style:italic;font-size:.72rem}
-  .backbtn{display:flex;align-items:center;gap:.45rem;width:100%;padding:.5rem .65rem;font:inherit;font-size:.86rem;font-weight:500;
-    color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:9px;cursor:pointer;
-    margin-bottom:11px;transition:border-color .12s,color .12s}
-  .backbtn:hover{border-color:var(--accent);color:var(--accent)}
-  .backbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .ct.nodat{font-size:var(--fs-s)}
   #stateSec{display:none}
-  /* Devanagari: letter spacing and small caps break its joined letters */
-  :root:lang(hi) .lbl,:root:lang(hi) .gh{letter-spacing:0;text-transform:none}
-  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-  .note{flex:none;margin:10px 2px 0;font-size:.7rem;line-height:1.45;color:var(--muted)}
 
-  /* village search results replace the district list while a query is typed */
-  #resWrap{display:none;flex-direction:column;min-height:0;margin-top:9px}
+  /* search results replace the lists while a query is typed */
+  #resWrap{display:none;flex-direction:column;min-height:0;margin-top:8px}
   #stateSec.searching #resWrap{display:flex}
-  #stateSec.searching #distHead,#stateSec.searching #distList{display:none}
-  .rsum{flex:none;font-size:.72rem;line-height:1.4;color:var(--muted);padding:0 2px 6px}
-  .rsum b{color:var(--ink);font-family:var(--mono);font-weight:600}
-  /* home screen: villages from every state, under any matching states */
-  #nWrap{display:none;flex-direction:column;min-height:0;margin-top:9px}
+  #stateSec.searching #distHead,#stateSec.searching #distList,#stateSec.searching #gapBox{display:none}
+  .rsum{flex:none;font-size:var(--fs-s);line-height:1.4;color:var(--muted);padding:0 calc(var(--g) - var(--hov)) 6px}
+  .rsum b{color:var(--ink);font-weight:400;font-variant-numeric:tabular-nums}
+  #nWrap{display:none;flex-direction:column;min-height:0;margin-top:8px}
   #statesSec.vsearch #nWrap{display:flex;flex:1 1 0}
   #statesSec.vsearch #stateList{flex:0 1 auto;max-height:35%}
   #statesSec.vsearch #stateList:empty{margin:0}
-  #statesSec.vsearch .note{display:none}
-  #villResults,#nResults{overflow-y:auto;display:flex;flex-direction:column;gap:1px;min-height:0;-webkit-overflow-scrolling:touch}
-  .res{display:block;width:100%;text-align:left;padding:.42rem .55rem;border:none;border-radius:8px;
+  #villResults,#nResults{overflow-y:auto;display:flex;flex-direction:column;min-height:0;-webkit-overflow-scrolling:touch}
+  .res{display:block;width:100%;text-align:left;padding:.5rem calc(var(--g) - var(--hov));border:none;border-radius:var(--r-m);
     background:none;font:inherit;color:var(--ink);cursor:pointer}
-  .res.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
-  .res .rn{display:block;font-size:.875rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .res .rn mark{background:none;color:var(--accent);font-weight:700}
-  .res .rm{display:flex;align-items:center;gap:.4rem;margin-top:1px;font-size:.74rem;color:var(--muted);
+  .res:hover{background:var(--fill)}
+  .res.on{background:var(--sel)}
+  .res .rn{display:block;font-size:var(--fs-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .res .rn mark{background:none;color:inherit;font-weight:600}
+  .res .rm{display:flex;align-items:center;gap:.4rem;margin-top:1px;font-size:var(--fs-s);color:var(--muted);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .res .rm .sw{width:8px;height:8px;border-radius:2px;flex:none}
-  .rempty{margin:4px 2px;font-size:.84rem;line-height:1.45;color:var(--muted)}
-  .linkbtn{border:none;background:none;padding:0;font:inherit;color:var(--accent);font-weight:600;cursor:pointer}
+  .res .rm .sw{width:9px;height:9px;border-radius:var(--r-xs);flex:none;box-shadow:inset 0 0 0 1px var(--ring)}
+  .rempty{margin:4px calc(var(--g) - var(--hov));font-size:var(--fs-m);line-height:1.45;color:var(--muted)}
+  #distHead .tbtn{font-size:var(--fs-s)}
+  #distDl[hidden]{display:none}
 
-  /* map */
-  #stage{flex:1;position:relative;min-width:0;background:var(--map-sea)}
-  /* /embed/...: just the map, for other sites' iframes */
-  #app.embed #topbar,#app.embed #sidebar,#app.embed #locBtn,#app.embed #info .acts{display:none}
-  #embedLink{display:none;position:absolute;top:12px;left:12px;z-index:11;align-items:center;gap:.35rem;
-    padding:.35rem .65rem;font-size:.78rem;font-weight:600;color:var(--ink);text-decoration:none;
-    background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
-  #embedLink:hover{border-color:var(--accent);color:var(--accent)}
+  /* what the source leaves out, per state: one quiet row in the sheet; the detail opens in an overlay */
+  #gapBox{flex:none;margin:22px 0 4px;font-size:var(--fs-s);line-height:1.45;color:var(--muted)}
+  #gapBox:empty{display:none}
+  #gapBox .gh{display:flex;align-items:center;gap:8px;width:100%;margin:0;padding:8px calc(var(--g) - var(--hov));border:none;border-radius:var(--r-m);
+    background:none;font:inherit;color:inherit;text-align:left}
+  #gapBox button.gh{cursor:pointer}
+  #gapBox button.gh:hover,#gapBox button.gh[aria-expanded="true"]{background:var(--fill)}
+  #gapBox .gh span{flex:1}
+  #gapBox .gh .ic{width:16px;height:16px}
+
+  /* overlays anchored to a button: state figures, data gaps. They float, so the sheet never moves. */
+  .pop{position:fixed;z-index:40;width:max-content;max-width:min(330px,calc(100vw - 16px));padding:14px 16px;border-radius:var(--r-l);
+    background:var(--material);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);box-shadow:var(--shadow)}
+  .pop[hidden]{display:none}
+  #dlPop .opts{display:flex;gap:8px}
+  #dlPop .cbtn{flex:1;min-width:84px}
+  #gapPop{width:330px;font-size:var(--fs-m);line-height:1.45;color:var(--muted)}
+  #gapPop ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+  #gapPop li{display:flex;gap:.9rem;align-items:baseline}
+  #gapPop li>span{flex:1}
+  #gapPop b{font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums}
+  #gapPop .tbtn{flex:none}
+
+  /* ---- place card: takes the sheet's place while a village (or a state without data) is open ---- */
+  #info{display:none;flex-direction:column;min-height:0;overflow-y:auto;padding:14px 12px var(--g) var(--g)}
+  #info.show{display:flex}
+  /* !important: the script shows and hides the list sections with inline display */
+  #sidebar:has(#info.show) > :not(#info):not(#grab){display:none!important}
+  #info .card-head{display:flex;align-items:flex-start;gap:10px}
+  #info .vname{flex:1;min-width:0;font-size:var(--fs-title);font-weight:700;line-height:1.15;margin:0;text-wrap:balance}
+  #info .vname .nr{font-size:var(--fs-l);font-weight:600}
+  #info .sub{margin:3px 0 0;font-size:var(--fs-m);color:var(--muted)}
+  #info .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 4px 0 0}
+  #info .act{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;padding:6px 4px;
+    border:none;border-radius:var(--r-m);background:var(--panel);color:var(--link);font:inherit;font-size:var(--fs-s);font-weight:600;
+    text-decoration:none;cursor:pointer;box-shadow:0 0 0 1px var(--line)}
+  #info .act .ic{width:19px;height:19px}
+  #info .act:hover{background:var(--fill)}
+  #info .act.pri{background:var(--accent);color:var(--on-accent);box-shadow:none}
+  #info .act.pri:hover{filter:brightness(1.08)}
+  #info .act[aria-expanded="true"]{background:var(--sel);box-shadow:none}
+  #info dl{margin:16px 4px 0 0;display:grid;grid-template-columns:auto 1fr;font-size:var(--fs-m);background:var(--panel);border-radius:var(--r-m);padding:0 14px;
+    box-shadow:0 0 0 1px var(--line)}
+  #info dt,#info dd{padding:.6rem 0}
+  #info dl>:nth-child(n+3){border-top:1px solid var(--line)}
+  #info dt{color:var(--muted);padding-right:1rem}
+  #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+  #info .nbrs{margin:22px 4px 0 0}
+  #info .nbrs:empty{display:none}
+  #info .nbrs .lbl{margin:0 0 6px}
+  #info .nbrs .none{margin:0;font-size:var(--fs-m);line-height:1.45;color:var(--muted)}
+  #info .nlist{display:flex;flex-direction:column;background:var(--panel);border-radius:var(--r-m);box-shadow:0 0 0 1px var(--line);overflow:hidden}
+  #info .nrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;min-height:42px;padding:.6rem 14px;border:none;background:none;
+    font:inherit;font-size:var(--fs-m);color:var(--ink);text-align:left;cursor:pointer}
+  #info .nrow+.nrow{border-top:1px solid var(--line)}
+  #info .nrow:hover{background:var(--fill)}
+  #info .nrow .od{font-size:var(--fs-s);color:var(--muted);white-space:nowrap}
+  #info .nrow.more{color:var(--link);font-weight:600}
+  #info .empty{margin:8px 0 0;font-size:var(--fs-m);line-height:1.45;color:var(--muted)}
+  #info .gapline{margin:12px 0 0;font-size:var(--fs-m);line-height:1.45;color:var(--muted)}
+  .nr{color:var(--muted);font-weight:400}
+
+  /* ---- settings menu: About, language, appearance, boundary detail ---- */
+  #menu{position:fixed;z-index:40;width:260px;padding:6px;border-radius:var(--r-l);
+    background:var(--material);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);box-shadow:var(--shadow)}
+  #menu[hidden]{display:none}
+  #menu .mi{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:0 10px;border:none;border-radius:var(--r-m);background:none;
+    font:inherit;font-size:var(--fs-m);color:var(--ink);text-align:left;cursor:pointer}
+  #menu .mi:hover,#menu .mi:focus-visible{background:var(--sel);outline:none}
+  #menu .mi .ic{color:var(--muted)}
+  #menu .grp{padding:8px 10px 6px}
+  #menu .grp+.grp,#menu .mi+.grp{margin-top:2px}
+  #menu .gl{margin:0 0 6px}
+  .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;padding:3px;border-radius:var(--r-m);background:var(--fill)}
+  .seg label{position:relative;display:grid;place-items:center;min-height:30px;padding:0 4px;border-radius:var(--r-s);font-size:var(--fs-s);cursor:pointer;text-align:center}
+  .seg input{position:absolute;opacity:0;pointer-events:none}
+  .seg label:has(input:checked){background:var(--panel);font-weight:600;box-shadow:0 1px 2px var(--ring)}
+  .seg label:has(input:focus-visible){outline:2px solid var(--link);outline-offset:1px}
+  #qualityNote{margin:6px 0 0;font-size:var(--fs-s);line-height:1.4;color:var(--muted)}
+  #qualityNote:empty{display:none}
+
+  /* ---- map: full bleed; the SVG box starts beside the sheet (--inset) so fitting and centring
+     use the open space, and it paints past its edges under the sheet ---- */
+  #stage{flex:1;position:relative;min-width:0;background:var(--map-sea);--inset:calc(var(--sheet-w) + 20px)}
+  #app.embed #sidebar{display:none}
+  #app.embed #stage{--inset:0px}
+  #app.embed #locBtn{display:none}
+  #embedLink{display:none;position:absolute;top:10px;left:10px;z-index:11;align-items:center;gap:.35rem;
+    padding:.45rem .75rem;font-size:var(--fs-m);font-weight:600;color:var(--link);text-decoration:none;
+    background:var(--material);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-radius:var(--r-m);box-shadow:var(--shadow)}
   #app.embed #embedLink{display:flex}
-  svg#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab;background:var(--map-sea);
-    transform-origin:0 0;will-change:transform}
+  svg#map{position:absolute;top:0;bottom:var(--peek);left:var(--inset);width:calc(100% - var(--inset));height:calc(100% - var(--peek));display:block;overflow:visible;
+    touch-action:none;cursor:grab;background:var(--map-sea);transform-origin:0 0;will-change:transform}
   svg#map.grabbing{cursor:grabbing}
   #land{fill:var(--map-bg)}
+  /* ?map=gl prototype: MapLibre draws the state from vector tiles in place of the SVG map */
+  #gl{position:absolute;inset:0;display:none;z-index:1;background:var(--map-bg)}
+  #app.gl #gl{display:block}
+  #app.gl svg#map,#app.gl #labels,#app.gl #scalebar{display:none}
+  #gl .maplibregl-ctrl-bottom-right{bottom:calc(var(--peek) + 26px)}
+  #gl .maplibregl-ctrl-scale{border-color:var(--ink);color:var(--ink);background:color-mix(in srgb,var(--map-bg) 80%,transparent);font:var(--fs-xs) var(--sans)}
   /* village outlines fade in with zoom (--vo set from on-screen village density); off entirely
-     when too dense to read, so a big state shows clean district colour blocks */
-  path.dist{stroke:var(--boundary);stroke-width:.35;stroke-opacity:var(--vo,1);vector-effect:non-scaling-stroke;cursor:pointer}
+     when too dense to read, so a big state shows clean district tints */
+  path.dist{stroke:var(--boundary);stroke-width:.4;stroke-opacity:var(--vo,1);vector-effect:non-scaling-stroke;cursor:pointer}
   #scene.nostroke path.dist{stroke:none}
-  path.dist.dim{opacity:.12}
+  path.dist.dim{opacity:.25}
   /* taluk and district boundaries (build/make_lines.py), over the villages */
-  path.tb,path.db{fill:none;stroke:var(--ink);stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none}
-  path.tb{stroke-width:.9;stroke-opacity:.38}
-  path.db{stroke-width:1.7;stroke-opacity:.62}
-  path.vhi{fill:none;stroke:var(--ink);stroke-width:1.6;vector-effect:non-scaling-stroke;pointer-events:none}
-  /* selected village: panel-coloured halo under an accent outline + tint, readable on any district colour */
-  path.vselh{fill:none;stroke:var(--panel);stroke-width:6;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none}
-  path.vsel{fill:color-mix(in srgb,var(--accent) 30%,transparent);stroke:var(--accent);stroke-width:2.4;stroke-linejoin:round;
+  path.tb,path.db{fill:none;stroke:var(--muted);stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none}
+  path.tb{stroke-width:.9;stroke-opacity:.6;stroke-dasharray:4 3}
+  path.db{stroke-width:1.8;stroke-opacity:.9}
+  path.vhi{fill:none;stroke:var(--ink);stroke-width:1.4;stroke-opacity:.7;vector-effect:non-scaling-stroke;pointer-events:none}
+  /* selected village: a soft halo under a blue outline and tint */
+  path.vselh{fill:none;stroke:var(--panel);stroke-width:6;stroke-opacity:.9;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none}
+  path.vsel{fill:color-mix(in srgb,var(--accent) 22%,var(--map-bg));stroke:var(--accent);stroke-width:2.6;stroke-linejoin:round;
     vector-effect:non-scaling-stroke;pointer-events:none}
-  path.vgap{fill:color-mix(in srgb,var(--ink) 55%,transparent);stroke:var(--ink);stroke-width:.8;vector-effect:non-scaling-stroke;pointer-events:none}
-  path.state{stroke:var(--panel);stroke-width:1.1;vector-effect:non-scaling-stroke;cursor:pointer;transition:opacity .12s}
-  path.state:hover{stroke:var(--ink);stroke-width:1.6}
-  path.state.hl{stroke:var(--ink);stroke-width:2.6;filter:brightness(1.12)}
-  path.state.nod{stroke:var(--line-strong);stroke-dasharray:3.5 2.5;cursor:default}
+  path.vgap{fill:color-mix(in srgb,var(--ink) 50%,transparent);stroke:var(--ink);stroke-width:.8;vector-effect:non-scaling-stroke;pointer-events:none}
+  path.state{stroke:var(--map-bg);stroke-width:1.2;vector-effect:non-scaling-stroke;cursor:pointer;transition:opacity .12s}
+  path.state:hover{stroke:var(--accent);stroke-width:1.6}
+  path.state.hl{stroke:var(--accent);stroke-width:2.6}
+  path.state.nod{stroke:var(--line);stroke-dasharray:3.5 2.5;cursor:default}
   path.state.nod:hover{stroke:var(--muted)}
-  path.state.nod.hl{filter:brightness(1.06)}
   path.ctx{fill:transparent;stroke:var(--ctx);stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer;pointer-events:all}
   path.ctx.here{stroke:var(--boundary)}
-  path.ctx.hl{stroke:var(--accent);stroke-width:2.4;fill:color-mix(in srgb,var(--accent) 12%,transparent)}
+  path.ctx.hl{stroke:var(--accent);stroke-width:2.4;fill:var(--sel)}
 
-  #tools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;z-index:10}
-  #tools button{width:34px;height:34px;border:1px solid var(--line);background:var(--panel);color:var(--ink);
-    border-radius:9px;box-shadow:var(--shadow);cursor:pointer;font-size:1rem;display:grid;place-items:center;line-height:1;
-    transition:border-color .12s,color .12s}
-  #tools button:hover{border-color:var(--accent);color:var(--accent)}
-  #tools button:active{transform:translateY(1px)}
-  /* quality switch: filled when full detail is on, plain when the map is simplified */
-  #tools #locBtn[aria-busy="true"] svg{animation:pulse 1s ease-in-out infinite}
-  #tools #qBtn{display:none;margin-top:4px;font-size:.66rem;font-weight:600;letter-spacing:.04em}
-  #app.in-state #tools #qBtn{display:grid}
-  #tools #qBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
-  #tools #qBtn[aria-pressed="false"]{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1.5px}
-  #tools button:focus-visible,#themeBtn:focus-visible,#langBtn:focus-visible,#menuBtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* map controls: zoom and fit in one frosted group, locate on its own */
+  #tools{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:10px;z-index:10}
+  #tools .grp{display:flex;flex-direction:column;border-radius:var(--r-m);overflow:hidden;
+    background:var(--material);-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);box-shadow:var(--shadow)}
+  #tools button{width:42px;height:42px;border:none;background:none;color:var(--ink);cursor:pointer;
+    display:grid;place-items:center;transition:background .12s}
+  #tools button+button{border-top:1px solid var(--line)}
+  #tools button:hover{background:var(--fill)}
+  #tools button:focus-visible{outline-offset:-3px}
+  #tools #locBtn{color:var(--link)}
+  #tools #locBtn[aria-busy="true"] svg{animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
 
-  #info{position:absolute;left:12px;bottom:12px;width:262px;max-width:calc(100% - 24px);
-    background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
-    padding:13px;display:none;z-index:15}
-  #info.show{display:block}
-  /* hover: a small label by the cursor; the full card opens on click */
-  #tip{position:absolute;left:0;top:0;z-index:16;display:none;max-width:230px;padding:5px 9px;pointer-events:none;
-    background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);font-size:.8rem;line-height:1.35}
+  /* hover: a small label by the cursor; the card opens on click */
+  #tip{position:absolute;left:0;top:0;z-index:16;display:none;max-width:230px;padding:6px 10px;pointer-events:none;
+    background:var(--material);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-radius:var(--r-m);box-shadow:var(--shadow);font-size:var(--fs-m);line-height:1.35}
   #tip.show{display:block}
   #tip b{font-weight:600}
-  #tip .m{display:block;color:var(--muted);font-size:.72rem}
-  #info .close{position:absolute;top:9px;right:10px;border:none;background:none;color:var(--muted);
-    font-size:1rem;cursor:pointer;line-height:1;padding:2px}
-  #info .vname{font-size:1.08rem;font-weight:600;margin:0 4px 3px 0;text-wrap:balance}
-  #info .chip{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;padding:.2rem .5rem;border-radius:999px;
-    background:var(--bg);border:1px solid var(--line);margin-bottom:9px}
-  #info .chip .dot{width:8px;height:8px;border-radius:50%}
-  #info dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:.32rem .8rem;font-size:.84rem}
-  #info dt{color:var(--muted)}
-  #info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
-  #info dd.code{font-family:var(--mono);font-size:.8rem}
-  #info .sat{font-size:.76rem;text-decoration:none}
-  #info .embedbtn{font-size:.8rem}
-  #info .nbrs{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:.8rem;line-height:1.5}
-  #info .nbrs:empty{display:none}
-  #info .nbrs .lbl{display:block;margin-bottom:2px}
-  #info .nbrs .linkbtn{font-weight:500;font-size:.8rem}
-  #info .nbrs .od{color:var(--muted)}
-  #info .acts{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.6rem;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
-  .dl{font-size:.76rem;color:var(--muted)}
-  .dl .linkbtn{font-size:.76rem}
-  #distDl:empty{display:none}
-  #info .share{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem}
-  #info .share svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
-  #info .go{margin-top:10px;color:var(--accent);font-size:.8rem;font-weight:600}
-  #info .empty{margin:2px 0 0;font-size:.82rem;line-height:1.45;color:var(--muted)}
-  #info .gapline{margin:9px 0 0;padding-top:8px;border-top:1px solid var(--line);font-size:.76rem;line-height:1.45;color:var(--muted)}
-  .nr{color:var(--muted);font-style:italic;font-family:var(--sans);font-weight:400}
-  #info .vname .nr{font-size:.95rem}
-
-  /* what the source leaves out, per state */
-  #gapBox{flex:none;margin-top:10px;padding:9px 10px;border:1px dashed var(--line-strong);border-radius:9px;
-    font-size:.76rem;line-height:1.4;color:var(--muted)}
-  #gapBox:empty,#stateSec.searching #gapBox{display:none}
-  #gapBox .gh{font-size:.64rem;text-transform:uppercase;letter-spacing:.1em;margin:0 0 6px}
-  #gapBox ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
-  #gapBox li{display:flex;gap:.5rem;align-items:baseline}
-  #gapBox li>span{flex:1}
-  #gapBox b{color:var(--ink);font-family:var(--mono);font-weight:600}
-  #gapBox .linkbtn{font-size:.74rem;flex:none}
-  #gapBox .linkbtn[aria-pressed="true"]{color:var(--ink);text-decoration:underline}
-  #gapBox .ok{color:var(--ink)}
+  #tip .m{display:block;color:var(--muted);font-size:var(--fs-s)}
 
   /* about the data */
-  #about{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 48px);border:1px solid var(--line);border-radius:14px;
-    background:var(--panel);color:var(--ink);box-shadow:var(--shadow);padding:20px 22px 18px;font-size:.9rem;line-height:1.55}
-  #about::backdrop{background:rgba(0,0,0,.45)}
-  #about h2{font-size:1.15rem;font-weight:600;margin:0 2rem .5rem 0}
-  #about h3{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:1.1rem 0 .3rem}
+  #about{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 48px);border:none;border-radius:var(--r-l);
+    background:var(--panel);color:var(--ink);box-shadow:var(--shadow);padding:22px 24px 20px;font-size:var(--fs-m);line-height:1.55}
+  #about .xbtn{position:absolute;top:18px;right:18px}
+  #about::backdrop{background:var(--scrim)}
+  #about h2{font-size:var(--fs-title);font-weight:700;margin:0 2.6rem .5rem 0}
+  #about h3{margin:1.2rem 0 .3rem}
   #about p,#about ul{margin:.3rem 0}
   #about ul{padding-left:1.1rem}
-  #about li{margin:.15rem 0}
-  #about a{color:var(--accent)}
-  #about .x{position:absolute;top:12px;right:12px;width:32px;height:32px;border:1px solid var(--line);background:var(--bg);
-    color:var(--ink);border-radius:9px;cursor:pointer;font-size:1rem}
+  #about li{margin:.25rem 0}
+  #about a{color:var(--link)}
+  #about code{font-family:var(--mono);font-size:.88em}
 
   /* map labels: a screen-space SVG layer positioned from the world transform, so text stays the
-     same size at any zoom. A thin outline in the panel colour (drawn under the fill) keeps
-     names legible on any district colour. */
-  #labels{transform-origin:0 0;position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:4}
-  /* district and state fills are the same mid-tones in both themes, so labels on them are dark
-     in both; only the no-data states (darkened in dark mode) follow the theme */
-  #labels text{font-family:var(--sans);font-size:12px;font-weight:500;fill:#1a1e22;
-    stroke:#fffdf9;stroke-width:1.6px;stroke-opacity:.45;stroke-linejoin:round;paint-order:stroke;
+     same size at any zoom. Fills are light tints of the land colour, so names use the ink colour
+     with a land-coloured outline in both themes. Its transform origin matches the map SVG's box. */
+  #labels{transform-origin:var(--inset) 0;position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:4}
+  #labels text{font-family:var(--sans);font-size:12px;font-weight:500;fill:var(--ink);
+    stroke:var(--map-bg);stroke-width:2.6px;stroke-opacity:.85;stroke-linejoin:round;paint-order:stroke;
     text-anchor:middle;dominant-baseline:central;text-rendering:geometricPrecision}
   #labels .st{font-size:13.5px;font-weight:600}
-  #labels .st.nod{fill:var(--muted);stroke:var(--panel);stroke-opacity:.8;font-weight:500}
-  #labels .di{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  #labels .st.nod{fill:var(--muted);font-weight:500}
+  #labels .di{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;fill:var(--muted)}
   #labels .pin{fill:none;stroke:var(--accent);stroke-width:2.5px;transform-box:fill-box;transform-origin:center;
     animation:ping 1.8s ease-out infinite}
   @keyframes ping{0%{transform:scale(.55);opacity:1}70%{opacity:.9}100%{transform:scale(1.25);opacity:0}}
-  @media (prefers-reduced-motion:reduce){#labels .pin{animation:none}}
+  @media (prefers-reduced-motion:reduce){#labels .pin,#tools #locBtn[aria-busy="true"] svg{animation:none}}
 
-  #detailChip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:12;display:none;align-items:center;gap:.45rem;
-    font-size:.76rem;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:999px;
-    padding:.3rem .7rem;box-shadow:var(--shadow);white-space:nowrap}
-  #detailChip.show{display:flex}
-  /* shown when full detail is being held back on a slow connection or device */
-  #qualityTip,#toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:13;display:none;align-items:center;gap:.6rem;
-    width:max-content;max-width:calc(100% - 110px);padding:.45rem .5rem .45rem .8rem;font-size:.8rem;line-height:1.35;
-    color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+  /* status notes, centred over the open map */
+  #detailChip,#qualityTip,#toast,#status{position:absolute;left:calc(var(--inset) + (100% - var(--inset)) / 2);transform:translateX(-50%);
+    background:var(--material);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:var(--shadow);color:var(--ink)}
+  #detailChip{top:10px;z-index:12;display:none;font-size:var(--fs-s);color:var(--muted);border-radius:var(--r-m);padding:.4rem .9rem;white-space:nowrap}
+  #detailChip.show{display:block}
+  #qualityTip,#toast{top:10px;z-index:13;display:none;align-items:center;gap:.6rem;
+    width:max-content;max-width:calc(100% - var(--inset) - 120px);padding:.5rem .5rem .5rem .95rem;font-size:var(--fs-m);line-height:1.35;border-radius:var(--r-m)}
   #qualityTip.show,#toast.show{display:flex}
   #toast{z-index:14}
   #qualityTip .qt,#toast .qt{color:var(--muted)}
-  #qualityTip .qt b{color:var(--ink);font-weight:600}
-  #qualityTip .hq{flex:none;border:none;border-radius:7px;background:var(--accent);color:var(--panel);font:inherit;font-size:.78rem;
-    font-weight:600;padding:.35rem .65rem;cursor:pointer;white-space:nowrap}
-  #qualityTip .hq:hover{filter:brightness(1.08)}
-  #qualityTip .dx,#toast .dx{flex:none;width:26px;height:26px;border:none;background:none;color:var(--muted);font-size:1rem;cursor:pointer;border-radius:6px}
-  #qualityTip .dx:hover,#toast .dx:hover{background:var(--bg);color:var(--ink)}
-  /* phones: the info card owns the bottom edge, so the tip sits top-left, clear of the zoom buttons */
-  @media (max-width:860px){#qualityTip,#toast{left:12px;right:58px;transform:none;width:auto;max-width:none}}
-  #about .qopts{display:flex;flex-wrap:wrap;gap:.4rem .9rem;margin:.35rem 0}
-  #about .qopts label{display:flex;align-items:center;gap:.35rem;cursor:pointer}
-  #about .qnote{font-size:.82rem;color:var(--muted)}
-  #scalebar{position:absolute;right:12px;bottom:30px;z-index:5;display:flex;flex-direction:column;align-items:flex-end;gap:2px;
-    font-size:.68rem;color:var(--ink);font-variant-numeric:tabular-nums;pointer-events:none}
+  #qualityTip .qt b{color:var(--ink);font-weight:400}
+  #qualityTip .pbtn{padding:7px 12px}
+  #status{top:50%;transform:translate(-50%,-50%);font-size:var(--fs-m);padding:.7rem 1.1rem;border-radius:var(--r-m);display:none;z-index:20}
+  #status.show{display:block}
+  #scalebar{position:absolute;right:12px;bottom:calc(var(--peek) + 30px);z-index:5;display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+    font-size:var(--fs-xs);color:var(--ink);font-variant-numeric:tabular-nums;pointer-events:none}
   #scalebar .bar{height:5px;border:1.5px solid var(--ink);border-top:none;background:color-mix(in srgb,var(--panel) 70%,transparent)}
-  #scalebar .txt{padding:0 3px;border-radius:4px;background:color-mix(in srgb,var(--panel) 78%,transparent)}
-  #detailChip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1s ease-in-out infinite}
-  #status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.88rem;color:var(--ink);
-    background:var(--panel);border:1px solid var(--line);padding:.6rem .95rem;border-radius:10px;box-shadow:var(--shadow);
-    display:none;align-items:center;gap:.55rem;z-index:20}
-  #status.show{display:flex}
-  #status::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent);
-    animation:pulse 1s ease-in-out infinite}
-  @keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
-  .cred{position:absolute;bottom:8px;right:12px;font-size:.66rem;color:var(--muted);
-    background:color-mix(in srgb,var(--panel) 78%,transparent);padding:2px 7px;border-radius:6px;z-index:5}
-  #backdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:24}
+  #scalebar .txt{padding:0 4px;border-radius:var(--r-s);background:color-mix(in srgb,var(--map-bg) 80%,transparent)}
+  .cred{position:absolute;bottom:calc(var(--peek) + 8px);right:12px;font-size:var(--fs-xs);color:var(--muted);
+    background:color-mix(in srgb,var(--map-bg) 80%,transparent);padding:2px 7px;border-radius:var(--r-s);z-index:5}
 
+  /* ---- phones: the sheet docks to the bottom with three heights (peek, half, full) ---- */
   @media (max-width:860px){
-    #menuBtn{display:grid}
-    #app.in-state #upBtn{display:inline-flex}
-    #app.in-state #topbar h1{display:none}
-    #crumb .meta{display:none}
-    #topbar{gap:.5rem;padding:.55rem .7rem}
-    #sidebar{position:absolute;inset:0 auto 0 0;height:100%;transform:translateX(-100%);
-      transition:transform .22s ease;box-shadow:var(--shadow);width:min(300px,86vw)}
-    #app.nav-open #sidebar{transform:translateX(0)}
-    #app.nav-open #backdrop{display:block}
-    #aboutBtn{padding:0;width:34px;justify-content:center}
-    #aboutBtn .long{display:none}
-    #aboutBtn .short{display:inline}
-    #info{width:calc(100% - 24px);left:12px;right:12px}
+    :root{--peek:182px}
+    #stage{--inset:0px}
+    #sidebar{top:auto;left:0;right:0;bottom:0;width:auto;max-height:none;height:var(--sh,50%);border-radius:var(--r-l) var(--r-l) 0 0;
+      transition:height .28s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom,0px)}
+    .home #sidebar{height:var(--sh,var(--peek))}
+    #sidebar.dragging{transition:none}
+    #grab{display:block;flex:none;height:22px;cursor:grab;touch-action:none;position:relative}
+    #grab::after{content:"";position:absolute;left:50%;top:7px;width:38px;height:5px;margin-left:-19px;border-radius:var(--r-xs);background:var(--line)}
+    .sheet-head{padding-top:2px;touch-action:none}
+    #info{padding-top:4px}
+    #tools{top:max(10px,env(safe-area-inset-top,0px))}
+    #detailChip,#qualityTip,#toast{top:max(10px,env(safe-area-inset-top,0px))}
+    #qualityTip,#toast{left:10px;right:64px;transform:none;width:auto;max-width:none}
+    #status{top:40%}
+    #info .acts{gap:6px}
   }
+  @media (max-width:860px) and (pointer:coarse){#tools .zoom{display:none}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -346,20 +408,20 @@ if (location.hostname === "indianvillage.4080studio.com") {
      engines and screen readers (the map itself is drawn by script) -->
 <div id="seo" class="sr-only"><h1>Every village boundary in India</h1><p>An interactive map of the 586,164 village boundaries the Survey of India has published, across 27 states and union territories. Search any village by name or LGD code, see which villages border it, and download its boundary.</p></div>
 <div id="app">
-  <div id="topbar">
-    <button id="menuBtn" data-la aria-label="States and districts" aria-expanded="false" aria-controls="sidebar"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <button id="upBtn" data-l data-la aria-label="Back to all of India"><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>India</button>
-    <h1 data-l>India Villages</h1>
-    <span id="crumb"></span>
-    <button id="aboutBtn" data-la aria-haspopup="dialog" aria-label="About the data"><span class="long" data-l aria-hidden="true">About the data</span><svg class="ic short" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
-    <button id="langBtn" lang="hi"></button>
-    <button id="themeBtn" data-la title="Light or dark" aria-label="Toggle theme"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg></button>
-  </div>
-
   <div id="body">
-    <aside id="sidebar">
-      <div class="side-sec grow" id="statesSec">
-        <div class="side-head"><div class="lbl" data-l><b id="stateCount"></b> States &amp; UTs</div></div>
+    <aside id="sidebar" aria-label="Search and places">
+      <div id="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <div class="ttl">
+          <button class="tbtn" id="backBtn" data-l><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All states</button>
+          <div class="trow">
+            <h1 id="crumb"><b>India Villages</b></h1>
+            <button id="statsBtn" data-la aria-label="State figures" title="State figures" aria-haspopup="dialog" aria-expanded="false" aria-controls="statsPop" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
+          </div>
+        </div>
+        <button id="moreBtn" data-la aria-label="Settings" title="Settings" aria-haspopup="menu" aria-expanded="false" aria-controls="menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/></svg></button>
+      </div>
+      <div class="side-sec" id="statesSec">
         <div class="field">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
           <input id="stateSearch" data-la type="search" placeholder="Find a state, village or LGD code…" autocomplete="off" spellcheck="false"
@@ -370,10 +432,8 @@ if (location.hostname === "indianvillage.4080studio.com") {
           <div class="rsum" id="nSum" role="status" aria-live="polite"></div>
           <div id="nResults" data-la role="listbox" aria-label="Villages across India"></div>
         </div>
-        <p class="note" data-l>27 states and UTs have village data. The Survey of India hasn't released the rest yet.</p>
       </div>
-      <div class="side-sec grow" id="stateSec">
-        <button class="backbtn" id="backBtn" data-l><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>All states</button>
+      <div class="side-sec" id="stateSec">
         <div class="field">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
           <input id="villSearch" data-la type="search" placeholder="Search a village or taluk…" autocomplete="off" spellcheck="false"
@@ -383,45 +443,73 @@ if (location.hostname === "indianvillage.4080studio.com") {
           <div class="rsum" id="resSum" role="status" aria-live="polite"></div>
           <div id="villResults" data-la role="listbox" aria-label="Matching villages"></div>
         </div>
-        <div class="side-head" id="distHead" style="margin-top:11px"><div class="lbl" id="distLbl" data-l>Districts</div><span class="dl" id="distDl"></span></div>
+        <div class="side-head" id="distHead"><div class="lbl" id="distLbl" data-l>Districts</div><button class="tbtn" id="distDl" aria-haspopup="dialog" aria-expanded="false" aria-controls="dlPop" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span data-l>Download</span></button></div>
         <div class="list" id="distList"></div>
         <div id="gapBox"></div>
       </div>
+      <div id="info" role="region" aria-live="polite"></div>
     </aside>
 
     <div id="stage">
+      <div id="gl"></div>
       <svg id="map" xmlns="http://www.w3.org/2000/svg">
         <rect id="land" x="-900000" y="-900000" width="1800000" height="1800000"/>
         <g id="world"><g id="ctx"></g><g id="scene"></g></g>
       </svg>
       <div id="tools">
-        <button id="zin" data-la aria-label="Zoom in"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button id="zout" data-la aria-label="Zoom out"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-        <button id="zreset" data-la aria-label="Fit to view" title="Fit to view"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-        <button id="locBtn" data-la aria-label="Find the village you are in" title="Find the village you are in"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-        <button id="qBtn" data-la aria-label="Full detail boundaries" aria-pressed="true">HD</button>
+        <div class="grp zoom">
+          <button id="zin" data-la aria-label="Zoom in" title="Zoom in"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button id="zout" data-la aria-label="Zoom out" title="Zoom out"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        </div>
+        <div class="grp">
+          <button id="zreset" data-la aria-label="Fit to view" title="Fit to view"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+          <button id="locBtn" data-la aria-label="Find the village you are in" title="Find the village you are in"><svg class="ic" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2-8z"/></svg></button>
+        </div>
       </div>
-      <div id="info"></div>
       <div id="tip" aria-hidden="true"></div>
       <div id="status" class="show" data-l>Loading India…</div>
       <div id="detailChip" role="status" aria-live="polite"></div>
       <div id="qualityTip" role="status" aria-live="polite">
         <span class="qt"></span>
-        <button class="hq" id="hqBtn" data-l>Switch to full detail</button>
-        <button class="dx" id="qtClose" data-la aria-label="Dismiss">×</button>
+        <button class="pbtn" id="hqBtn" data-l>Switch to full detail</button>
+        <button class="xbtn" id="qtClose" data-la aria-label="Dismiss"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div id="toast" role="status" aria-live="polite"><span class="qt"></span><button class="dx" data-la aria-label="Dismiss">×</button></div>
-      <a id="embedLink" data-l target="_blank" rel="noopener">India Villages ↗</a>
+      <div id="toast" role="status" aria-live="polite"><span class="qt"></span><button class="xbtn" data-la aria-label="Dismiss"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <a id="embedLink" data-l target="_blank" rel="noopener">India Villages</a>
       <div id="scalebar" aria-hidden="true"><span class="bar"></span><span class="txt"></span></div>
       <div class="cred" data-l>Data © Survey of India · National Geospatial Policy 2022</div>
       <svg id="labels" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
-      <div id="backdrop"></div>
     </div>
   </div>
 </div>
 
+<div id="statsPop" class="pop" role="dialog" data-la aria-label="State figures" hidden><div id="stats"></div></div>
+<div id="dlPop" class="pop" role="dialog" data-la aria-label="Download" hidden></div>
+<div id="gapPop" class="pop" role="dialog" data-la aria-label="Gaps in the source data" hidden></div>
+<div id="menu" role="menu" data-la aria-label="Settings" hidden>
+  <button class="mi" id="aboutBtn" role="menuitem" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span data-l>About the data</span></button>
+  <button class="mi" id="langBtn" role="menuitem"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9M8.5 3v2M6 5c.5 3 2.5 6 6 8M11 5c-.8 3.5-3 6.5-7 8.5M13 21l4-9 4 9M14.5 18h5"/></svg><span lang="hi">हिन्दी में देखें</span></button>
+  <div class="grp">
+    <p class="gl" id="themeLbl" data-l>Appearance</p>
+    <div class="seg" role="radiogroup" aria-labelledby="themeLbl">
+      <label><input type="radio" name="theme" value="system"><span data-l>System</span></label>
+      <label><input type="radio" name="theme" value="light"><span data-l>Light</span></label>
+      <label><input type="radio" name="theme" value="dark"><span data-l>Dark</span></label>
+    </div>
+  </div>
+  <div class="grp">
+    <p class="gl" id="qualityLbl" data-l>Boundary detail</p>
+    <div class="seg" role="radiogroup" aria-labelledby="qualityLbl">
+      <label><input type="radio" name="quality" value="auto"><span data-l>Auto</span></label>
+      <label><input type="radio" name="quality" value="hq"><span data-l>Full detail</span></label>
+      <label><input type="radio" name="quality" value="lite"><span data-l>Simplified</span></label>
+    </div>
+    <p id="qualityNote"></p>
+  </div>
+</div>
+
 <dialog id="about" aria-labelledby="aboutTitle">
-  <button class="x" id="aboutClose" data-la aria-label="Close">×</button>
+  <button class="xbtn" id="aboutClose" data-la aria-label="Close"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h2 id="aboutTitle" data-l>About the data</h2>
   <p data-lh="about-source">Boundaries and village details come from the Survey of India
     <a href="https://surveyofindia.gov.in/pages/village-boundary-data-base-of-entire-india" target="_blank" rel="noopener">village boundary database</a>,
@@ -432,13 +520,6 @@ if (location.hostname === "indianvillage.4080studio.com") {
     <li data-lh="about-gaps">In the released states, some villages have no name, LGD code, taluk or category in the source. Each state lists its gaps below the district list, and blank fields show as <span class="nr">not in source</span>.</li>
     <li data-l>Some district names are spelled more than one way in the source, so they appear as separate districts.</li>
   </ul>
-  <h3 data-l>Map quality</h3>
-  <div class="qopts" role="radiogroup" data-la aria-label="Boundary detail">
-    <label data-l><input type="radio" name="quality" value="auto"> Auto</label>
-    <label data-l><input type="radio" name="quality" value="hq"> Full detail</label>
-    <label data-l><input type="radio" name="quality" value="lite"> Simplified</label>
-  </div>
-  <p class="qnote" id="qualityNote"></p>
   <h3 data-l>Notes</h3>
   <ul>
     <li data-l>Thin lines inside a state are taluk boundaries and thicker ones are district boundaries. Both follow the village boundaries.</li>
@@ -453,7 +534,9 @@ if (location.hostname === "indianvillage.4080studio.com") {
 <script>
 (function(){
   "use strict";
-  try{const t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(_){}
+  // light unless the visitor chose Dark, or System to follow the device (Settings > Appearance)
+  let THEME="light";try{const t=localStorage.getItem("theme");if(t==="dark"||t==="system")THEME=t;}catch(_){}
+  if(THEME!=="system")document.documentElement.setAttribute("data-theme",THEME);
   const PALETTE=["#6ba368","#e0a13c","#d9663f","#3d94a6","#8a6fb0","#c0577f","#4d9670",
     "#c99a3c","#5b8def","#d17c4a","#57a99a","#b0563f","#7aa03f","#9a6ac0","#3f9fb0","#c77d9e"];
   // Categories as the source spells them, with only unambiguous abbreviations and typos expanded
@@ -488,7 +571,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
       const v=localStorage.getItem("lang");if(v==="hi"||v==="en")return v;}catch(_){}
     return /^hi\b/i.test(navigator.language||"")?"hi":"en";})();
   document.documentElement.lang=LANG;
-  const HI={"not in source":"स्रोत में नहीं","Category":"श्रेणी","Close":"बंद करें","Name not in source":"नाम स्रोत में नहीं","District not in source":"ज़िला स्रोत में नहीं","Taluk":"तहसील","Area":"क्षेत्रफल","LGD code":"एलजीडी कोड","Satellite":"सैटेलाइट","Download":"डाउनलोड","Share":"शेयर करें","Embed":"एम्बेड करें","Bordering villages":"सीमावर्ती गाँव","None in this data. It may be on the coast, a state border or next to a town.":"इस डेटा में कोई नहीं। यह गाँव तट पर, राज्य की सीमा पर या किसी शहर के पास हो सकता है।","Unnamed":"बिना नाम","no district":"ज़िला नहीं","<b>1</b> bordering village":"<b>1</b> सीमावर्ती गाँव","<b>{n}</b> bordering villages":"<b>{n}</b> सीमावर्ती गाँव","+{n} more":"+{n} और","Embed code copied. Paste it into your page's HTML.":"एम्बेड कोड कॉपी हो गया। इसे अपने पेज के HTML में पेस्ट करें।","Link copied. It opens this village.":"लिंक कॉपी हो गया। यह इसी गाँव को खोलता है।","Villages":"गाँव","Districts":"ज़िले","Taluks":"तहसीलें","Click to see its villages":"इसके गाँव देखने के लिए क्लिक करें","No village data. The Survey of India hasn't released this one yet.":"गाँवों का डेटा नहीं। भारतीय सर्वेक्षण विभाग ने इसे अभी जारी नहीं किया है।","{n} unnamed":"{n} बिना नाम","{n} without an LGD code":"{n} बिना एलजीडी कोड","Gaps in source:":"स्रोत में कमियाँ:","Every village has a name and LGD code in the source.":"स्रोत में हर गाँव का नाम और एलजीडी कोड है।","All of India":"पूरा भारत","{n} states with village data":"{n} राज्यों का गाँव डेटा","Couldn't reach the server. Offline, only states opened before on this device are available.":"सर्वर से संपर्क नहीं हो सका। ऑफ़लाइन होने पर सिर्फ़ वही राज्य खुलते हैं जो इस डिवाइस पर पहले खोले गए थे।","Could not load {s}":"{s} लोड नहीं हो सका","Drawing {n} villages…":"{n} गाँव बनाए जा रहे हैं…","{v} villages · {d} districts · {t} taluks":"{v} गाँव · {d} ज़िले · {t} तहसीलें","<b>{n}</b> districts":"<b>{n}</b> ज़िले","Loading {s}…":"{s} लोड हो रहा है…","in {d}":"{d} में","<b>1</b> village":"<b>1</b> गाँव","<b>{n}</b> villages":"<b>{n}</b> गाँव","showing first {n}. Add a taluk or district name to narrow.":"पहले {n} दिखाए गए हैं। खोज छोटी करने के लिए तहसील या ज़िले का नाम जोड़ें।","no LGD code":"एलजीडी कोड नहीं","No villages match “{q}”":"“{q}” से कोई गाँव नहीं मिला","Search all districts":"सभी ज़िलों में खोजें","no data":"डेटा नहीं","Village search could not load. Check your connection and try again.":"गाँव खोज लोड नहीं हो सकी। अपना इंटरनेट देखें और फिर से कोशिश करें।","Type one more letter to search villages.":"गाँव खोजने के लिए एक अक्षर और लिखें।","Searching villages…":"गाँव खोजे जा रहे हैं…","<b>1</b> village across India":"पूरे भारत में <b>1</b> गाँव","<b>{n}</b> villages across India":"पूरे भारत में <b>{n}</b> गाँव","showing first {n}. Add a district or state name to narrow.":"पहले {n} दिखाए गए हैं। खोज छोटी करने के लिए ज़िले या राज्य का नाम जोड़ें।","No LGD codes start with “{q}”.":"कोई एलजीडी कोड “{q}” से शुरू नहीं होता।","No village names start with “{q}”.":"किसी गाँव का नाम “{q}” से शुरू नहीं होता।","{a} of India's {b} states and UTs are in the public release so far.":"भारत के {b} राज्यों और केंद्र शासित प्रदेशों में से {a} का डेटा अब तक जारी हुआ है।","Not yet released: {list}.":"अभी जारी नहीं: {list}।","Some district names are spelled more than one way in the source (for example Devbhumi Dwarka), so they show as separate districts.":"स्रोत में कुछ ज़िलों के नाम एक से ज़्यादा तरह से लिखे हैं (जैसे देवभूमि द्वारका), इसलिए वे अलग-अलग ज़िलों की तरह दिखते हैं।","One area is labelled “Disputed” in the source instead of a district.":"स्रोत में एक क्षेत्र को ज़िले की जगह “Disputed” (विवादित) लिखा गया है।","<b>{n}</b> villages ({p}) have no name":"<b>{n}</b> गाँवों ({p}) का नाम नहीं है","<b>{n}</b> villages ({p}) have no LGD code":"<b>{n}</b> गाँवों ({p}) का एलजीडी कोड नहीं है","<b>{n}</b> villages ({p}) share an LGD code with another village":"<b>{n}</b> गाँवों ({p}) का एलजीडी कोड किसी दूसरे गाँव जैसा है","<b>{n}</b> villages ({p}) have no taluk":"<b>{n}</b> गाँवों ({p}) की तहसील नहीं दी गई है","<b>{n}</b> villages ({p}) have no category":"<b>{n}</b> गाँवों ({p}) की श्रेणी नहीं दी गई है","<b>{n}</b> villages ({p}) are marked “Under process”":"<b>{n}</b> गाँव ({p}) “Under process” (प्रक्रिया में) दर्ज हैं","Show":"दिखाएँ","Hide":"छिपाएँ","Gaps in the source data":"स्रोत डेटा में कमियाँ","Every village has a name, LGD code and taluk in the source.":"स्रोत में हर गाँव का नाम, एलजीडी कोड और तहसील है।","Data Saver is on":"डेटा सेवर चालू है","your connection looks slow":"आपका इंटरनेट धीमा लग रहा है","this device has limited memory":"इस डिवाइस में मेमोरी कम है","this device is slow to draw the map":"यह डिवाइस नक्शा धीरे बना रहा है","Full detail is on. Click for simplified boundaries (faster)":"पूरा विवरण चालू है। सरल सीमाओं (तेज़) के लिए क्लिक करें","Simplified boundaries":"सरल सीमाएँ","Click for full detail":"पूरे विवरण के लिए क्लिक करें","<b>Simplified boundaries.</b> Full detail is turned off.":"<b>सरल सीमाएँ।</b> पूरा विवरण बंद है।","<b>Simplified boundaries</b> because {r}. Zoomed in this far, full detail would be sharper.":"<b>सरल सीमाएँ</b>, क्योंकि {r}। इतना ज़ूम करने पर पूरा विवरण ज़्यादा साफ़ दिखेगा।","Auto is using simplified boundaries because {r}.":"ऑटो सरल सीमाएँ दिखा रहा है, क्योंकि {r}।","Auto loads full detail when you zoom in, unless your connection or device looks slow.":"ज़ूम करने पर ऑटो पूरा विवरण लोड करता है, जब तक इंटरनेट या डिवाइस धीमा न लगे।","Loading full detail…":"पूरा विवरण लोड हो रहा है…","Preparing download…":"डाउनलोड तैयार हो रहा है…","Couldn't load full detail for the download. Try again.":"डाउनलोड के लिए पूरा विवरण लोड नहीं हो सका। फिर से कोशिश करें।","Downloaded 1 village with every surveyed point.":"1 गाँव हर सर्वे बिंदु के साथ डाउनलोड हुआ।","Downloaded {n} villages with every surveyed point.":"{n} गाँव हर सर्वे बिंदु के साथ डाउनलोड हुए।","This browser can't share your location.":"यह ब्राउज़र आपकी लोकेशन नहीं दे सकता।","Location is blocked for this site. Allow it in your browser settings to use this.":"इस साइट के लिए लोकेशन बंद है। इसे इस्तेमाल करने के लिए ब्राउज़र सेटिंग में अनुमति दें।","Couldn't get your location. Try again outdoors or with Wi-Fi on.":"आपकी लोकेशन नहीं मिल सकी। खुली जगह में या वाई-फ़ाई चालू करके फिर से कोशिश करें।","You seem to be outside the states on this map.":"आप इस नक्शे के राज्यों से बाहर लग रहे हैं।","You're in {s}. The Survey of India hasn't released village data for it yet.":"आप {s} में हैं। भारतीय सर्वेक्षण विभाग ने इसका गाँव डेटा अभी जारी नहीं किया है।","No village boundary at your spot in {s}. You may be in a town, a forest or on a state border.":"{s} में आपकी जगह पर कोई गाँव सीमा नहीं है। आप किसी शहर, जंगल या राज्य की सीमा पर हो सकते हैं।","Could not load map data":"नक्शे का डेटा लोड नहीं हो सका","Rural":"ग्रामीण","Urban":"शहरी","Others":"अन्य","Fully urban":"पूर्णतः शहरी","Partly urban":"आंशिक शहरी","Under process":"प्रक्रिया में","Forest":"वन","States and districts":"राज्य और ज़िले","Back to all of India":"पूरे भारत पर वापस","India":"भारत","India Villages":"भारत के गाँव","India Villages ↗":"भारत के गाँव ↗","About the data":"डेटा के बारे में","Light or dark":"हल्का या गहरा","Toggle theme":"थीम बदलें","States & UTs":"राज्य और केंद्र शासित प्रदेश","Find a state, village or LGD code…":"राज्य, गाँव या एलजीडी कोड खोजें…","Villages across India":"पूरे भारत के गाँव","27 states and UTs have village data. The Survey of India hasn't released the rest yet.":"27 राज्यों और केंद्र शासित प्रदेशों का गाँव डेटा उपलब्ध है। बाकी भारतीय सर्वेक्षण विभाग ने अभी जारी नहीं किए हैं।","All states":"सभी राज्य","Search a village or taluk…":"गाँव या तहसील खोजें…","Matching villages":"मिलते गाँव","Zoom in":"ज़ूम इन","Zoom out":"ज़ूम आउट","Fit to view":"पूरा दिखाएँ","Find the village you are in":"जिस गाँव में आप हैं, उसे खोजें","Full detail boundaries":"पूरे विवरण वाली सीमाएँ","Loading India…":"भारत लोड हो रहा है…","Switch to full detail":"पूरा विवरण दिखाएँ","Dismiss":"हटाएँ","Data © Survey of India · National Geospatial Policy 2022":"डेटा © भारतीय सर्वेक्षण विभाग · राष्ट्रीय भू-स्थानिक नीति 2022","Missing data":"अधूरा डेटा","Some district names are spelled more than one way in the source, so they appear as separate districts.":"स्रोत में कुछ ज़िलों के नाम एक से ज़्यादा तरह से लिखे हैं, इसलिए वे अलग-अलग ज़िलों की तरह दिखते हैं।","Map quality":"नक्शे की गुणवत्ता","Boundary detail":"सीमा का विवरण","Auto":"ऑटो","Full detail":"पूरा विवरण","Simplified":"सरल","Notes":"टिप्पणियाँ","Population (2011)":"जनसंख्या (2011)","Thin lines inside a state are taluk boundaries and thicker ones are district boundaries. Both follow the village boundaries.":"राज्य के अंदर पतली रेखाएँ तहसील की सीमाएँ हैं और मोटी रेखाएँ ज़िले की। दोनों गाँवों की सीमाओं पर ही चलती हैं।","Zoomed out, boundaries are simplified so large states load quickly. Zoom in and every surveyed point loads. Use the map for reference, not for legal or survey work.":"ज़ूम आउट होने पर बड़े राज्य जल्दी लोड हों, इसलिए सीमाएँ सरल दिखती हैं। ज़ूम करने पर हर सर्वे बिंदु लोड होता है। नक्शे को संदर्भ के लिए इस्तेमाल करें, कानूनी या सर्वे कार्य के लिए नहीं।","The LGD code is the government's village identifier. It links this map to Census and other datasets. You can search by LGD code to find villages that have no name.":"एलजीडी कोड सरकार की ओर से गाँव की पहचान संख्या है। यह इस नक्शे को जनगणना और दूसरे डेटा से जोड़ता है। जिन गाँवों का नाम नहीं है, उन्हें एलजीडी कोड से खोजा जा सकता है।","html:about-source":"सीमाएँ और गाँवों का विवरण भारतीय सर्वेक्षण विभाग के <a href=\"https://surveyofindia.gov.in/pages/village-boundary-data-base-of-entire-india\" target=\"_blank\" rel=\"noopener\">गाँव सीमा डेटाबेस</a> से है, जो राष्ट्रीय भू-स्थानिक नीति 2022 के तहत जारी हुआ है। नक्शा वही डेटा दिखाता है जो जारी हुआ है। कुछ भी अपनी ओर से भरा या अनुमान से नहीं जोड़ा गया है।","html:about-gaps":"जारी हुए राज्यों में कुछ गाँवों का नाम, एलजीडी कोड, तहसील या श्रेणी स्रोत में नहीं है। हर राज्य की कमियाँ ज़िलों की सूची के नीचे दी गई हैं, और खाली जानकारी <span class=\"nr\">स्रोत में नहीं</span> लिखी दिखती है।","html:about-api":"डेवलपर्स के लिए: <code>/api/village/&lt;LGD code&gt;</code> किसी गाँव का विवरण और सीमावर्ती गाँव JSON में देता है, और उसकी पूरी सीमा के GeoJSON का लिंक भी। देखें <a href=\"/api\" target=\"_blank\" rel=\"noopener\">/api</a>।","html:about-borders":"सभी सीमाएँ भारतीय सर्वेक्षण विभाग की हैं। जिन राज्यों का डेटा जारी नहीं हुआ, उनकी स्लेटी रूपरेखा उसके <a href=\"https://surveyofindia.gov.in/pages/administrative-boundary-data-base-abdb-\" target=\"_blank\" rel=\"noopener\">राज्य सीमा डेटाबेस</a> से है।"};
+  const HI={"State figures":"राज्य के आँकड़े","<b>{n}</b> village ({p}) has no name":"<b>{n}</b> गाँवों ({p}) का नाम नहीं है","<b>{n}</b> village ({p}) has no LGD code":"<b>{n}</b> गाँवों ({p}) का एलजीडी कोड नहीं है","<b>{n}</b> village ({p}) has no taluk":"<b>{n}</b> गाँवों ({p}) की तहसील नहीं दी गई है","<b>{n}</b> village ({p}) has no category":"<b>{n}</b> गाँवों ({p}) की श्रेणी नहीं दी गई है","<b>{n}</b> village ({p}) is marked “Under process”":"<b>{n}</b> गाँव ({p}) “Under process” (प्रक्रिया में) दर्ज हैं","Settings":"सेटिंग्स","Appearance":"रूप","System":"सिस्टम","Light":"हल्का","Dark":"गहरा","Link copied":"लिंक कॉपी हो गया","not in source":"स्रोत में नहीं","Category":"श्रेणी","Close":"बंद करें","Name not in source":"नाम स्रोत में नहीं","District not in source":"ज़िला स्रोत में नहीं","Taluk":"तहसील","Area":"क्षेत्रफल","LGD code":"एलजीडी कोड","Satellite":"सैटेलाइट","Download":"डाउनलोड","Share":"शेयर करें","Embed":"एम्बेड करें","Bordering villages":"सीमावर्ती गाँव","None in this data. It may be on the coast, a state border or next to a town.":"इस डेटा में कोई नहीं। यह गाँव तट पर, राज्य की सीमा पर या किसी शहर के पास हो सकता है।","Unnamed":"बिना नाम","no district":"ज़िला नहीं","<b>1</b> bordering village":"<b>1</b> सीमावर्ती गाँव","<b>{n}</b> bordering villages":"<b>{n}</b> सीमावर्ती गाँव","+{n} more":"+{n} और","Embed code copied. Paste it into your page's HTML.":"एम्बेड कोड कॉपी हो गया। इसे अपने पेज के HTML में पेस्ट करें।","Link copied. It opens this village.":"लिंक कॉपी हो गया। यह इसी गाँव को खोलता है।","Villages":"गाँव","Districts":"ज़िले","Taluks":"तहसीलें","Click to see its villages":"इसके गाँव देखने के लिए क्लिक करें","No village data. The Survey of India hasn't released this one yet.":"गाँवों का डेटा नहीं। भारतीय सर्वेक्षण विभाग ने इसे अभी जारी नहीं किया है।","{n} unnamed":"{n} बिना नाम","{n} without an LGD code":"{n} बिना एलजीडी कोड","Gaps in source:":"स्रोत में कमियाँ:","Every village has a name and LGD code in the source.":"स्रोत में हर गाँव का नाम और एलजीडी कोड है।","All of India":"पूरा भारत","{n} states with village data":"{n} राज्यों का गाँव डेटा","Couldn't reach the server. Offline, only states opened before on this device are available.":"सर्वर से संपर्क नहीं हो सका। ऑफ़लाइन होने पर सिर्फ़ वही राज्य खुलते हैं जो इस डिवाइस पर पहले खोले गए थे।","Could not load {s}":"{s} लोड नहीं हो सका","Drawing {n} villages…":"{n} गाँव बनाए जा रहे हैं…","{v} villages · {d} districts · {t} taluks":"{v} गाँव · {d} ज़िले · {t} तहसीलें","<b>{n}</b> districts":"<b>{n}</b> ज़िले","Loading {s}…":"{s} लोड हो रहा है…","in {d}":"{d} में","<b>1</b> village":"<b>1</b> गाँव","<b>{n}</b> villages":"<b>{n}</b> गाँव","showing first {n}. Add a taluk or district name to narrow.":"पहले {n} दिखाए गए हैं। खोज छोटी करने के लिए तहसील या ज़िले का नाम जोड़ें।","no LGD code":"एलजीडी कोड नहीं","No villages match “{q}”":"“{q}” से कोई गाँव नहीं मिला","Search all districts":"सभी ज़िलों में खोजें","no data":"डेटा नहीं","Village search could not load. Check your connection and try again.":"गाँव खोज लोड नहीं हो सकी। अपना इंटरनेट देखें और फिर से कोशिश करें।","Type one more letter to search villages.":"गाँव खोजने के लिए एक अक्षर और लिखें।","Searching villages…":"गाँव खोजे जा रहे हैं…","<b>1</b> village across India":"पूरे भारत में <b>1</b> गाँव","<b>{n}</b> villages across India":"पूरे भारत में <b>{n}</b> गाँव","showing first {n}. Add a district or state name to narrow.":"पहले {n} दिखाए गए हैं। खोज छोटी करने के लिए ज़िले या राज्य का नाम जोड़ें।","No LGD codes start with “{q}”.":"कोई एलजीडी कोड “{q}” से शुरू नहीं होता।","No village names start with “{q}”.":"किसी गाँव का नाम “{q}” से शुरू नहीं होता।","{a} of India's {b} states and UTs are in the public release so far.":"भारत के {b} राज्यों और केंद्र शासित प्रदेशों में से {a} का डेटा अब तक जारी हुआ है।","Not yet released: {list}.":"अभी जारी नहीं: {list}।","Some district names are spelled more than one way in the source (for example Devbhumi Dwarka), so they show as separate districts.":"स्रोत में कुछ ज़िलों के नाम एक से ज़्यादा तरह से लिखे हैं (जैसे देवभूमि द्वारका), इसलिए वे अलग-अलग ज़िलों की तरह दिखते हैं।","One area is labelled “Disputed” in the source instead of a district.":"स्रोत में एक क्षेत्र को ज़िले की जगह “Disputed” (विवादित) लिखा गया है।","<b>{n}</b> villages ({p}) have no name":"<b>{n}</b> गाँवों ({p}) का नाम नहीं है","<b>{n}</b> villages ({p}) have no LGD code":"<b>{n}</b> गाँवों ({p}) का एलजीडी कोड नहीं है","<b>{n}</b> villages ({p}) share an LGD code with another village":"<b>{n}</b> गाँवों ({p}) का एलजीडी कोड किसी दूसरे गाँव जैसा है","<b>{n}</b> villages ({p}) have no taluk":"<b>{n}</b> गाँवों ({p}) की तहसील नहीं दी गई है","<b>{n}</b> villages ({p}) have no category":"<b>{n}</b> गाँवों ({p}) की श्रेणी नहीं दी गई है","<b>{n}</b> villages ({p}) are marked “Under process”":"<b>{n}</b> गाँव ({p}) “Under process” (प्रक्रिया में) दर्ज हैं","Show":"दिखाएँ","Hide":"छिपाएँ","Gaps in the source data":"स्रोत डेटा में कमियाँ","Every village has a name, LGD code and taluk in the source.":"स्रोत में हर गाँव का नाम, एलजीडी कोड और तहसील है।","Data Saver is on":"डेटा सेवर चालू है","your connection looks slow":"आपका इंटरनेट धीमा लग रहा है","this device has limited memory":"इस डिवाइस में मेमोरी कम है","this device is slow to draw the map":"यह डिवाइस नक्शा धीरे बना रहा है","Full detail is on. Click for simplified boundaries (faster)":"पूरा विवरण चालू है। सरल सीमाओं (तेज़) के लिए क्लिक करें","Simplified boundaries":"सरल सीमाएँ","Click for full detail":"पूरे विवरण के लिए क्लिक करें","<b>Simplified boundaries.</b> Full detail is turned off.":"<b>सरल सीमाएँ।</b> पूरा विवरण बंद है।","<b>Simplified boundaries</b> because {r}. Zoomed in this far, full detail would be sharper.":"<b>सरल सीमाएँ</b>, क्योंकि {r}। इतना ज़ूम करने पर पूरा विवरण ज़्यादा साफ़ दिखेगा।","Auto is using simplified boundaries because {r}.":"ऑटो सरल सीमाएँ दिखा रहा है, क्योंकि {r}।","Auto loads full detail when you zoom in, unless your connection or device looks slow.":"ज़ूम करने पर ऑटो पूरा विवरण लोड करता है, जब तक इंटरनेट या डिवाइस धीमा न लगे।","Loading full detail…":"पूरा विवरण लोड हो रहा है…","Preparing download…":"डाउनलोड तैयार हो रहा है…","Couldn't load full detail for the download. Try again.":"डाउनलोड के लिए पूरा विवरण लोड नहीं हो सका। फिर से कोशिश करें।","Downloaded 1 village with every surveyed point.":"1 गाँव हर सर्वे बिंदु के साथ डाउनलोड हुआ।","Downloaded {n} villages with every surveyed point.":"{n} गाँव हर सर्वे बिंदु के साथ डाउनलोड हुए।","This browser can't share your location.":"यह ब्राउज़र आपकी लोकेशन नहीं दे सकता।","Location is blocked for this site. Allow it in your browser settings to use this.":"इस साइट के लिए लोकेशन बंद है। इसे इस्तेमाल करने के लिए ब्राउज़र सेटिंग में अनुमति दें।","Couldn't get your location. Try again outdoors or with Wi-Fi on.":"आपकी लोकेशन नहीं मिल सकी। खुली जगह में या वाई-फ़ाई चालू करके फिर से कोशिश करें।","You seem to be outside the states on this map.":"आप इस नक्शे के राज्यों से बाहर लग रहे हैं।","You're in {s}. The Survey of India hasn't released village data for it yet.":"आप {s} में हैं। भारतीय सर्वेक्षण विभाग ने इसका गाँव डेटा अभी जारी नहीं किया है।","No village boundary at your spot in {s}. You may be in a town, a forest or on a state border.":"{s} में आपकी जगह पर कोई गाँव सीमा नहीं है। आप किसी शहर, जंगल या राज्य की सीमा पर हो सकते हैं।","Could not load map data":"नक्शे का डेटा लोड नहीं हो सका","Rural":"ग्रामीण","Urban":"शहरी","Others":"अन्य","Fully urban":"पूर्णतः शहरी","Partly urban":"आंशिक शहरी","Under process":"प्रक्रिया में","Forest":"वन","States and districts":"राज्य और ज़िले","Back to all of India":"पूरे भारत पर वापस","India":"भारत","India Villages":"भारत के गाँव","India Villages ↗":"भारत के गाँव ↗","About the data":"डेटा के बारे में","Light or dark":"हल्का या गहरा","Toggle theme":"थीम बदलें","States & UTs":"राज्य और केंद्र शासित प्रदेश","Find a state, village or LGD code…":"राज्य, गाँव या एलजीडी कोड खोजें…","Villages across India":"पूरे भारत के गाँव","27 states and UTs have village data. The Survey of India hasn't released the rest yet.":"27 राज्यों और केंद्र शासित प्रदेशों का गाँव डेटा उपलब्ध है। बाकी भारतीय सर्वेक्षण विभाग ने अभी जारी नहीं किए हैं।","All states":"सभी राज्य","Search a village or taluk…":"गाँव या तहसील खोजें…","Matching villages":"मिलते गाँव","Zoom in":"ज़ूम इन","Zoom out":"ज़ूम आउट","Fit to view":"पूरा दिखाएँ","Find the village you are in":"जिस गाँव में आप हैं, उसे खोजें","Full detail boundaries":"पूरे विवरण वाली सीमाएँ","Loading India…":"भारत लोड हो रहा है…","Switch to full detail":"पूरा विवरण दिखाएँ","Dismiss":"हटाएँ","Data © Survey of India · National Geospatial Policy 2022":"डेटा © भारतीय सर्वेक्षण विभाग · राष्ट्रीय भू-स्थानिक नीति 2022","Missing data":"अधूरा डेटा","Some district names are spelled more than one way in the source, so they appear as separate districts.":"स्रोत में कुछ ज़िलों के नाम एक से ज़्यादा तरह से लिखे हैं, इसलिए वे अलग-अलग ज़िलों की तरह दिखते हैं।","Map quality":"नक्शे की गुणवत्ता","Boundary detail":"सीमा का विवरण","Auto":"ऑटो","Full detail":"पूरा विवरण","Simplified":"सरल","Notes":"टिप्पणियाँ","Population (2011)":"जनसंख्या (2011)","Thin lines inside a state are taluk boundaries and thicker ones are district boundaries. Both follow the village boundaries.":"राज्य के अंदर पतली रेखाएँ तहसील की सीमाएँ हैं और मोटी रेखाएँ ज़िले की। दोनों गाँवों की सीमाओं पर ही चलती हैं।","Zoomed out, boundaries are simplified so large states load quickly. Zoom in and every surveyed point loads. Use the map for reference, not for legal or survey work.":"ज़ूम आउट होने पर बड़े राज्य जल्दी लोड हों, इसलिए सीमाएँ सरल दिखती हैं। ज़ूम करने पर हर सर्वे बिंदु लोड होता है। नक्शे को संदर्भ के लिए इस्तेमाल करें, कानूनी या सर्वे कार्य के लिए नहीं।","The LGD code is the government's village identifier. It links this map to Census and other datasets. You can search by LGD code to find villages that have no name.":"एलजीडी कोड सरकार की ओर से गाँव की पहचान संख्या है। यह इस नक्शे को जनगणना और दूसरे डेटा से जोड़ता है। जिन गाँवों का नाम नहीं है, उन्हें एलजीडी कोड से खोजा जा सकता है।","html:about-source":"सीमाएँ और गाँवों का विवरण भारतीय सर्वेक्षण विभाग के <a href=\"https://surveyofindia.gov.in/pages/village-boundary-data-base-of-entire-india\" target=\"_blank\" rel=\"noopener\">गाँव सीमा डेटाबेस</a> से है, जो राष्ट्रीय भू-स्थानिक नीति 2022 के तहत जारी हुआ है। नक्शा वही डेटा दिखाता है जो जारी हुआ है। कुछ भी अपनी ओर से भरा या अनुमान से नहीं जोड़ा गया है।","html:about-gaps":"जारी हुए राज्यों में कुछ गाँवों का नाम, एलजीडी कोड, तहसील या श्रेणी स्रोत में नहीं है। हर राज्य की कमियाँ ज़िलों की सूची के नीचे दी गई हैं, और खाली जानकारी <span class=\"nr\">स्रोत में नहीं</span> लिखी दिखती है।","html:about-api":"डेवलपर्स के लिए: <code>/api/village/&lt;LGD code&gt;</code> किसी गाँव का विवरण और सीमावर्ती गाँव JSON में देता है, और उसकी पूरी सीमा के GeoJSON का लिंक भी। देखें <a href=\"/api\" target=\"_blank\" rel=\"noopener\">/api</a>।","html:about-borders":"सभी सीमाएँ भारतीय सर्वेक्षण विभाग की हैं। जिन राज्यों का डेटा जारी नहीं हुआ, उनकी स्लेटी रूपरेखा उसके <a href=\"https://surveyofindia.gov.in/pages/administrative-boundary-data-base-abdb-\" target=\"_blank\" rel=\"noopener\">राज्य सीमा डेटाबेस</a> से है।"};
   const STATE_HI={"andaman-nicobar-islands":"अंडमान और निकोबार द्वीप समूह","andhra-pradesh":"आंध्र प्रदेश","arunachal-pradesh":"अरुणाचल प्रदेश","assam":"असम","bihar":"बिहार","chandigarh":"चंडीगढ़","chhattisgarh":"छत्तीसगढ़","dadra-nagar-haveli-daman-diu":"दादरा और नगर हवेली और दमन और दीव","delhi":"दिल्ली","goa":"गोवा","gujarat":"गुजरात","haryana":"हरियाणा","himachal-pradesh":"हिमाचल प्रदेश","jammu-kashmir":"जम्मू और कश्मीर","jharkhand":"झारखंड","karnataka":"कर्नाटक","kerala":"केरल","ladakh":"लद्दाख","lakshadweep":"लक्षद्वीप","madhya-pradesh":"मध्य प्रदेश","maharashtra":"महाराष्ट्र","manipur":"मणिपुर","meghalaya":"मेघालय","mizoram":"मिज़ोरम","nagaland":"नागालैंड","odisha":"ओडिशा","puducherry":"पुडुचेरी","punjab":"पंजाब","rajasthan":"राजस्थान","sikkim":"सिक्किम","tamil-nadu":"तमिलनाडु","telangana":"तेलंगाना","tripura":"त्रिपुरा","uttar-pradesh":"उत्तर प्रदेश","uttarakhand":"उत्तराखंड","west-bengal":"पश्चिम बंगाल"};
   // L("Loading {s}…",{s:"Goa"}): the Hindi text when Hindi is on and translated, else the English
   function L(t,v){let o=LANG==="hi"&&HI[t]||t;if(v)o=o.replace(/\{(\w+)\}/g,(_,k)=>v[k]);return o;}
@@ -503,11 +586,9 @@ if (location.hostname === "indianvillage.4080studio.com") {
     document.querySelectorAll("[data-lh]").forEach(el=>{const h=HI["html:"+el.dataset.lh];if(h)el.innerHTML=h;});}
   translatePage();
   const langBtn=document.getElementById("langBtn");
-  langBtn.textContent=LANG==="hi"?"EN":"हिं";
-  langBtn.lang=LANG==="hi"?"en":"hi";
-  langBtn.setAttribute("aria-label",LANG==="hi"?"View in English":"हिन्दी में देखें");
-  langBtn.title=langBtn.getAttribute("aria-label");
-  langBtn.onclick=()=>{const u=new URL(location.href);u.searchParams.set("lang",LANG==="hi"?"en":"hi");location.href=u;};   // bump when dist/data is regenerated (busts CDN/browser cache)
+  langBtn.querySelector("span").textContent=LANG==="hi"?"View in English":"हिन्दी में देखें";
+  langBtn.querySelector("span").lang=LANG==="hi"?"en":"hi";
+      langBtn.onclick=()=>{const u=new URL(location.href);u.searchParams.set("lang",LANG==="hi"?"en":"hi");location.href=u;};   // bump when dist/data is regenerated (busts CDN/browser cache)
 
   const svg=$("map"), world=$("world"), ctx=$("ctx"), scene=$("scene"), info=$("info"), statusEl=$("status");
   let INDIA=[], STATES=[];                 // overview outlines + manifest
@@ -520,7 +601,10 @@ if (location.hostname === "indianvillage.4080studio.com") {
   let gGN=1,gMinLon=0,gMinLat=0,gCellLon=1,gCellLat=1,gcells=[];   // spatial hit-test grid
   let PH=800,pMinX=0,pMinY=0,pScale=1, k=1,tx=0,ty=0;
   const px=x=>pad+(x-pMinX)*pScale, py=y=>PH-pad-(y-pMinY)*pScale;
-  const distColor=n=>distColors[n]||"var(--c-others)";
+  // map fills use the theme's version of each palette hue (--p0..--p15 in the stylesheet)
+  const PAL_I=Object.fromEntries(PALETTE.map((h,i)=>[h,i]));
+  const tint=(c,p)=>{const v=PAL_I[c]!=null?`var(--p${PAL_I[c]})`:c;return p?`color-mix(in srgb,${v} ${p}%,var(--map-bg))`:v;};
+  const distColor=n=>tint(distColors[n]||"var(--c-others)");
   // PostHog events (only loaded on the live site, see <head>); a search is logged once the
   // typing settles, not on every keystroke
   const track=(e,props)=>{try{if(window.posthog&&posthog.__loaded)posthog.capture(e,{state:curSlug,...props});}catch(_){}};
@@ -592,7 +676,8 @@ if (location.hostname === "indianvillage.4080studio.com") {
     tx=cx-(cx-tx)*r;ty=cy-(cy-ty)*r;k=nk;clamp();(live?applyLive:apply)();}
   // screen point -> viewBox units, from the stage's box (the SVG's own box may be moved by applyLive)
   function toSVG(cx,cy){const r=$("stage").getBoundingClientRect(),[m,ox,oy]=fitM();
-    return {x:(cx-r.left-ox)/m,y:(cy-r.top-oy)/m};}
+    const inset=parseFloat(getComputedStyle(svg).left)||0;     // the SVG box starts beside the sheet
+    return {x:(cx-r.left-inset-ox)/m,y:(cy-r.top-oy)/m};}
   svg.addEventListener("wheel",e=>{e.preventDefault();let dy=e.deltaY;
     if(e.deltaMode===1)dy*=16;else if(e.deltaMode===2)dy*=400;dy=Math.max(-60,Math.min(60,dy));
     const p=toSVG(e.clientX,e.clientY);zoomAt(p.x,p.y,Math.exp(-dy*0.0022),true);},{passive:false});
@@ -625,9 +710,9 @@ if (location.hostname === "indianvillage.4080studio.com") {
     }else if(ptrs.size===1){const p=[...ptrs.values()][0];pan={sx:p.x,sy:p.y,tx,ty,moved:99};}}
   // pointer capture makes the SVG the click target, so hit-test the point ourselves
   function selPath(d){if(selEl){selEl.setAttribute("d",d);selH.setAttribute("d",d);}}
-  function setSelect(i,zoom){selI=i;selPath(pathFor(feats[i].geometry));cardVillage(i);if(!isLite())loadDetail(feats[i].properties.d||"");
+  function setSelect(i,zoom){selI=i;if(gl)glSel(i);else selPath(pathFor(feats[i].geometry));cardVillage(i);if(!gl&&!isLite())loadDetail(feats[i].properties.d||"");
     if(zoom)zoomToFeature(i);syncHash();scheduleLabels();}
-  function clearSelect(){selI=-1;selPath("");info.classList.remove("show");syncHash();scheduleLabels();}
+  function clearSelect(){selI=-1;selPath("");if(gl)glSel(-1);info.classList.remove("show");syncHash();scheduleLabels();}
   function selectVillage(i){if(i===selI)clearSelect();else setSelect(i);}
   function handleTap(cx,cy){
     if(mode==="overview"){const el=document.elementFromPoint(cx,cy);
@@ -637,9 +722,9 @@ if (location.hostname === "indianvillage.4080studio.com") {
     const el=document.elementFromPoint(cx,cy);            // tapped a neighbour's context outline
     if(el&&el.__s!=null)enterState(INDIA[el.__s].properties.slug);}
   svg.addEventListener("pointerup",up);svg.addEventListener("pointercancel",up);
-  $("zin").onclick=()=>zoomAt(PW/2,PH/2,1.4);
-  $("zout").onclick=()=>zoomAt(PW/2,PH/2,1/1.4);
-  $("zreset").onclick=()=>{k=1;tx=0;ty=0;apply();};
+  $("zin").onclick=()=>gl?gl.zoomIn():zoomAt(PW/2,PH/2,1.4);
+  $("zout").onclick=()=>gl?gl.zoomOut():zoomAt(PW/2,PH/2,1/1.4);
+  $("zreset").onclick=()=>{if(gl){gl.fitBounds(glMeta.bbox,{padding:glPad()});return;}k=1;tx=0;ty=0;apply();};
 
   // ---------- info card ----------
   // anything the source leaves blank says so, rather than showing a dash or a guess
@@ -647,18 +732,22 @@ if (location.hostname === "indianvillage.4080studio.com") {
   function cardVillage(i){const p=feats[i].properties;
     const c=normCat("c" in p?p.c:catDefault);           // null = this file predates categories
     const catRow=c==null?"":`<dt>${L("Category")}</dt><dd>${c?esc(catLabel(c)):NR()}</dd>`;
-    info.innerHTML=`<button class="close" aria-label="${L("Close")}">×</button>
-      <p class="vname">${p.n?esc(p.n):'<span class="nr">'+L("Name not in source")+'</span>'}</p>
-      <span class="chip"><span class="dot" style="background:${distColor(p.d)}"></span>${p.d?esc(cap(p.d)):L("District not in source")}</span>
-      <dl><dt>${L("Taluk")}</dt><dd>${p.s?esc(cap(p.s)):NR()}</dd><dt>${L("Area")}</dt><dd>${p.a!=null?nf(p.a)+" km²":NR()}</dd>
-      <dt>${L("LGD code")}</dt><dd class="code">${p.l?esc(p.l):NR()}</dd>${catRow}${popRow(i)}</dl><div class="nbrs"></div>`+
-      `<div class="acts"><a class="linkbtn sat" target="_blank" rel="noopener" href="${satUrl(feats[i].geometry)}">${L("Satellite")} ↗</a><span class="dl">${L("Download")} <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button></span>`+
-      (p.l?`<button class="linkbtn share"><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>${L("Share")}</button> <button class="linkbtn embedbtn">${L("Embed")}</button>`:"")+`</div>`;
+    const loc=[p.s&&cap(p.s),p.d?cap(p.d):L("District not in source")].filter(Boolean).map(esc).join(", ");
+    info.innerHTML=`<div class="card-head"><h2 class="vname">${p.n?esc(p.n):'<span class="nr">'+L("Name not in source")+'</span>'}</h2>
+      <button class="xbtn close" aria-label="${L("Close")}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <p class="sub">${loc}</p>
+      <div class="acts">`+
+      (p.l?`<button class="act pri share"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>${L("Share")}</button>`:"")+
+      `<a class="act sat" target="_blank" rel="noopener" href="${satUrl(feats[i])}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z"/><path d="M9 4v13M15 7v13"/></svg>${L("Satellite")}</a>
+      <button class="act dlt" aria-haspopup="dialog" aria-expanded="false" aria-controls="dlPop"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>${L("Download")}</button></div>
+      <dl>${p.s?"":`<dt>${L("Taluk")}</dt><dd>${NR()}</dd>`}<dt>${L("Area")}</dt><dd>${p.a!=null?nf(p.a)+" km²":NR()}</dd>
+      ${popRow(i)}${catRow}<dt>${L("LGD code")}</dt><dd>${p.l?esc(p.l):NR()}</dd></dl><div class="nbrs"></div>`;
+    if(!p.l)info.querySelector(".acts").style.gridTemplateColumns="repeat(2,1fr)";
+    const dt=info.querySelector(".dlt");
+    dt.onclick=()=>openDownload(dt,f=>{track("boundary_downloaded",{what:"village",format:f,villages:1});download([i],f);},
+      p.l?()=>{track("embed_copied",{lgd:p.l});embedCode(i);}:null);
     const sh=info.querySelector(".share");if(sh)sh.onclick=()=>{track("village_shared",{lgd:feats[i].properties.l});shareVillage(i);};
-    const eb=info.querySelector(".embedbtn");if(eb)eb.onclick=()=>{track("embed_copied",{lgd:feats[i].properties.l});embedCode(i);};
     const st=info.querySelector(".sat");if(st)st.onclick=()=>track("satellite_opened",{lgd:feats[i].properties.l});
-    info.querySelectorAll(".dl [data-fmt]").forEach(b=>b.onclick=()=>{
-      track("boundary_downloaded",{what:"village",format:b.dataset.fmt,villages:1});download([i],b.dataset.fmt);});
     if(i===selI){showNeighbours(i);loadPop(i);}
     info.classList.add("show");wireClose();}
   // Bordering villages: worked out at build time from the full-detail boundaries (villages
@@ -670,21 +759,20 @@ if (location.hostname === "indianvillage.4080studio.com") {
     const box=info.querySelector(".nbrs");
     if(!nb||!box||slug!==curSlug||selI!==i||nb.length!==feats.length)return;
     const d=feats[i].properties.d, list=nb[i].slice().sort((a,b)=>(feats[a]._n||"~").localeCompare(feats[b]._n||"~"));
-    if(!list.length){box.innerHTML=`<span class="lbl">${L("Bordering villages")}</span>${L("None in this data. It may be on the coast, a state border or next to a town.")}`;return;}
+    if(!list.length){box.innerHTML=`<p class="lbl">${L("Bordering villages")}</p><p class="none">${L("None in this data. It may be on the coast, a state border or next to a town.")}</p>`;return;}
     const item=j=>{const q=feats[j].properties;
-      return `<button class="linkbtn" data-j="${j}">${q.n?esc(q.n):L("Unnamed")+(q.l?" ("+esc(q.l)+")":"")}</button>`+
-        (q.d!==d?` <span class="od">(${q.d?esc(cap(q.d)):L("no district")})</span>`:"");};
-    const render=all=>{box.innerHTML=`<span class="lbl">${L(list.length===1?"<b>1</b> bordering village":"<b>{n}</b> bordering villages",{n:list.length})}</span>`+
-      (all?list:list.slice(0,NB_SHOW)).map(item).join(", ")+
-      (!all&&list.length>NB_SHOW?`, <button class="linkbtn more">${L("+{n} more",{n:list.length-NB_SHOW})}</button>`:"");
+      return `<button class="nrow" data-j="${j}"><span>${q.n?esc(q.n):L("Unnamed")+(q.l?" ("+esc(q.l)+")":"")}</span>`+
+        (q.d!==d?`<span class="od">${q.d?esc(cap(q.d)):L("no district")}</span>`:"")+`</button>`;};
+    const render=all=>{box.innerHTML=`<p class="lbl">${L("Bordering villages")}</p><div class="nlist">`+
+      (all?list:list.slice(0,NB_SHOW)).map(item).join("")+
+      (!all&&list.length>NB_SHOW?`<button class="nrow more">${L("+{n} more",{n:list.length-NB_SHOW})}</button>`:"")+`</div>`;
       box.querySelectorAll("[data-j]").forEach(b=>{const j=+b.dataset.j;
         b.onclick=()=>setSelect(j,true);b.onmouseenter=()=>hoverVillage(j);b.onmouseleave=()=>hoverVillage(-1);});
       const m=box.querySelector(".more");if(m)m.onclick=()=>render(true);};
     render(false);}
   // Satellite imagery can't be drawn here (Bhuvan and others need a licence to show it on
   // another site), so this opens the village's middle in Google Maps' satellite view instead
-  function satUrl(g){let a=1e9,b=1e9,c=-1e9,d=-1e9;
-    eachRing(g,r=>r.forEach(([lo,la])=>{if(lo<a)a=lo;if(lo>c)c=lo;if(la<b)b=la;if(la>d)d=la;}));
+  function satUrl(f){const[a,b,c,d]=fbox(f);
     const z=Math.max(12,Math.min(18,Math.round(Math.log2(360/Math.max(c-a,d-b,1e-4))-1)));
     return `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&zoom=${z}&center=${((b+d)/2).toFixed(6)},${((a+c)/2).toFixed(6)}`;}
   // an iframe for other sites, showing this village
@@ -696,13 +784,12 @@ if (location.hostname === "indianvillage.4080studio.com") {
   async function shareVillage(i){const p=feats[i].properties, url=location.href;
     const title=(p.n||"Village "+p.l)+(p.d?", "+cap(p.d):"");
     if(navigator.share&&matchMedia("(pointer:coarse)").matches){try{await navigator.share({title,url});}catch(_){}return;}
-    try{await navigator.clipboard.writeText(url);toast(L("Link copied. It opens this village."));}
+    try{await navigator.clipboard.writeText(url);toast(L("Link copied"));}
     catch(_){toast(url);}}
   function cardState(s){const p=INDIA[s].properties;
-    info.innerHTML=`<button class="close" aria-label="${L("Close")}">×</button>
-      <p class="vname">${esc(sn(p))}</p>`+(p.villages
+    info.innerHTML=`<div class="card-head"><h2 class="vname">${esc(sn(p))}</h2><button class="xbtn close" aria-label="${L("Close")}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`+(p.villages
         ?`<dl><dt>${L("Villages")}</dt><dd>${nf(p.villages)}</dd><dt>${L("Districts")}</dt><dd>${p.districts}</dd>
-           <dt>${L("Taluks")}</dt><dd>${p.taluks}</dd></dl>${gapLine(p)}<div class="go">${L("Click to see its villages")}</div>`
+           <dt>${L("Taluks")}</dt><dd>${p.taluks}</dd></dl>${gapLine(p)}`
         :`<p class="empty">${L("No village data. The Survey of India hasn't released this one yet.")}</p>`);
     info.classList.add("show");wireClose();}
   function gapLine(p){if(p.noName==null)return "";
@@ -734,12 +821,110 @@ if (location.hostname === "indianvillage.4080studio.com") {
   window.addEventListener("popstate",route);
   window.addEventListener("hashchange",route);
 
+  // ---------- ?map=gl prototype: vector tiles drawn by MapLibre GL (build/make_tiles.py) ----------
+  // A state draws from its vector tiles (/tiles/<slug>/z/x/y.pbf, out of the archive
+  // build/make_tiles.py writes): only the tiles in view load, each at the detail its zoom needs,
+  // up to every surveyed point. The sheet, search and card read data/tiles/<slug>.attrs.json, the
+  // villages without their shapes, instead of .packed.json. ?map=gl turns this on for the
+  // device, ?map=svg turns it off. A state without tiles yet draws as before.
+  const GL=(()=>{try{const q=new URLSearchParams(location.search).get("map");
+    if(q==="gl"||q==="svg")localStorage.setItem("map",q);return localStorage.getItem("map")==="gl";}catch(_){return false;}})();
+  const useGL=()=>GL&&!EMBED;
+  let gl=null, glSlug=null, glMeta=null, glLib=null, glOpening=null, glReady=false;   // glReady: the style's layers exist
+  const GL_LIB=ROOT+"lib/maplibre-gl-4.7.1/maplibre-gl";       // MapLibre GL, hosted here (dist/lib)
+  function loadGLLib(){return glLib||(glLib=new Promise((res,rej)=>{
+    const css=document.createElement("link");css.rel="stylesheet";css.href=GL_LIB+".css";document.head.appendChild(css);
+    const sc=document.createElement("script");sc.src=GL_LIB+".js";sc.onload=res;
+    sc.onerror=()=>{glLib=null;sc.remove();rej(new Error("no map library"));};document.head.appendChild(sc);}));}
+  const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  // the theme's colours, read from the stylesheet so the tiles follow light and dark
+  function glColours(){const fill=["match",["get","ci"]];for(let i=0;i<16;i++)fill.push(i,cssv("--p"+i));fill.push(cssv("--c-others"));
+    return {fill,land:cssv("--map-bg"),line:cssv("--boundary"),muted:cssv("--muted"),ink:cssv("--ink"),panel:cssv("--panel"),accent:cssv("--accent"),ctx:cssv("--ctx")};}
+  // room for the sheet (desktop: beside it; phone: above it) when fitting
+  function glPad(extraBottom){return phone()?{top:24,left:24,right:24,bottom:(extraBottom||peekPx())+24}
+    :{top:40,bottom:40,right:70,left:sheet.getBoundingClientRect().right+30};}
+  const NONE=["==",["id"],-1];
+  function glStyle(slug){const c=glColours(),font=["noto-sans-medium"],v={source:"v"},vil={...v,"source-layer":"villages",minzoom:9};
+    return {version:8,glyphs:location.origin+ROOT+"lib/glyphs/{fontstack}/{range}.pbf",
+      // tiles come one by one from the Worker, which reads them out of the state's archive in R2
+      sources:{v:{type:"vector",tiles:[`${location.origin}${ROOT}tiles/${slug}/{z}/{x}/{y}.pbf?v=${DATA_V}`],
+        minzoom:5,maxzoom:14,bounds:glMeta.bbox},
+        india:{type:"geojson",data:{type:"FeatureCollection",features:INDIA.map((f,i)=>({type:"Feature",id:i,properties:{},geometry:f.geometry}))}}},
+      layers:[
+        {id:"bg",type:"background",paint:{"background-color":c.land}},
+        {id:"ctxfill",type:"fill",source:"india",paint:{"fill-opacity":0}},
+        {id:"ctx",type:"line",source:"india",paint:{"line-color":c.ctx,"line-width":1}},
+        {id:"dfill",type:"fill",...v,"source-layer":"districts",maxzoom:9,paint:{"fill-color":c.fill}},
+        {id:"vfill",type:"fill",...vil,paint:{"fill-color":c.fill}},
+        {id:"vline",type:"line",...vil,paint:{"line-color":c.line,"line-width":.5,"line-opacity":["interpolate",["linear"],["zoom"],9,0,10.5,.9]}},
+        {id:"vgap",type:"fill",...vil,filter:NONE,paint:{"fill-color":c.ink,"fill-opacity":.5}},
+        {id:"tline",type:"line",...v,"source-layer":"lines",filter:["==",["get","k"],"t"],paint:{"line-color":c.muted,"line-opacity":.6,"line-width":.9,"line-dasharray":[4,3]}},
+        {id:"dline",type:"line",...v,"source-layer":"lines",filter:["==",["get","k"],"d"],paint:{"line-color":c.muted,"line-opacity":.9,"line-width":1.8}},
+        {id:"vhov",type:"line",...vil,filter:NONE,paint:{"line-color":c.ink,"line-opacity":.7,"line-width":1.4}},
+        {id:"vselh",type:"line",...vil,filter:NONE,paint:{"line-color":c.panel,"line-opacity":.9,"line-width":6}},
+        {id:"vself",type:"fill",...vil,filter:NONE,paint:{"fill-color":c.accent,"fill-opacity":.22}},
+        {id:"vsel",type:"line",...vil,filter:NONE,paint:{"line-color":c.accent,"line-width":2.6}},
+        {id:"dlab",type:"symbol",...v,"source-layer":"labels",maxzoom:10.5,filter:["==",["get","k"],"d"],
+          layout:{"text-field":["get","n"],"text-font":font,"text-size":11,"text-transform":"uppercase","text-letter-spacing":.06},
+          paint:{"text-color":c.muted,"text-halo-color":c.land,"text-halo-width":1.4}},
+        {id:"vlab",type:"symbol",...v,"source-layer":"labels",minzoom:11,filter:["==",["get","k"],"v"],
+          layout:{"text-field":["get","n"],"text-font":font,"text-size":12,"symbol-sort-key":["-",0,["get","a"]]},
+          paint:{"text-color":c.ink,"text-halo-color":c.land,"text-halo-width":1.4}}]};}
+  function glRepaint(){if(!gl||!glReady)return;const c=glColours();
+    gl.setPaintProperty("bg","background-color",c.land);gl.setPaintProperty("ctx","line-color",c.ctx);
+    gl.setPaintProperty("dfill","fill-color",c.fill);gl.setPaintProperty("vfill","fill-color",c.fill);
+    gl.setPaintProperty("vline","line-color",c.line);gl.setPaintProperty("vgap","fill-color",c.ink);
+    ["tline","dline"].forEach(l=>gl.setPaintProperty(l,"line-color",c.muted));gl.setPaintProperty("vhov","line-color",c.ink);
+    gl.setPaintProperty("vselh","line-color",c.panel);gl.setPaintProperty("vself","fill-color",c.accent);gl.setPaintProperty("vsel","line-color",c.accent);
+    gl.setPaintProperty("dlab","text-color",c.muted);gl.setPaintProperty("vlab","text-color",c.ink);
+    ["dlab","vlab"].forEach(l=>gl.setPaintProperty(l,"text-halo-color",c.land));}
+  new MutationObserver(glRepaint).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",glRepaint);
+  function glOpen(slug){return glOpening=(async()=>{
+    if(!glMeta||glMeta.slug!==slug){glMeta=await fetch(`${ROOT}data/tiles/${slug}.json?v=${DATA_V}`).then(r=>{if(!r.ok)throw new Error("no tiles");return r.json();});glMeta.slug=slug;}
+    await loadGLLib();
+    if(gl&&glSlug===slug)return;
+    glClose();glSlug=slug;$("app").classList.add("gl");
+    gl=new maplibregl.Map({container:"gl",style:glStyle(slug),bounds:glMeta.bbox,fitBoundsOptions:{padding:glPad()},
+      attributionControl:false,dragRotate:false,pitchWithRotate:false,touchPitch:false,maxZoom:17,minZoom:3});
+    gl.touchZoomRotate.disableRotation();
+    gl.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-right");
+    const at=e=>gl.queryRenderedFeatures(e.point,{layers:["vfill"]})[0];
+    gl.on("click",e=>{const f=at(e);
+      if(f){if(feats.length&&curSlug===slug)selectVillage(f.id);return;}
+      const st=gl.queryRenderedFeatures(e.point,{layers:["ctxfill"]})[0];
+      if(st&&INDIA[st.id].properties.slug!==curSlug){enterState(INDIA[st.id].properties.slug);return;}
+      if(gl.getZoom()<9)gl.easeTo({center:e.lngLat,zoom:Math.max(10,gl.getZoom()+2)});});      // zoomed out: tap goes in
+    gl.on("mousemove",e=>{const f=at(e),oe=e.originalEvent;
+      gl.getCanvas().style.cursor=f?"pointer":"";
+      if(!f||!feats.length||curSlug!==slug){glHover(-1);hideTip();return;}
+      if(f.id!==hoverI){hoverI=f.id;glHover(f.id);showTip(villageTip(f.id),oe.clientX,oe.clientY);}else showTip(null,oe.clientX,oe.clientY);});
+    gl.on("mouseout",()=>{hoverI=-1;glHover(-1);hideTip();});
+    gl.on("load",()=>{glReady=true;glSel(selI);glFilter();if(gapOn)glGap(gapSets[gapOn]);});
+    gl.once("idle",()=>{document.documentElement.dataset.glReady=Math.round(performance.now());});})();}   // first full draw, for timing
+  function glClose(){if(gl){gl.remove();gl=null;glSlug=null;glReady=false;}$("app").classList.remove("gl");}
+  const glSet=(layers,f)=>{if(gl&&glReady)layers.forEach(l=>gl.setFilter(l,f));};
+  function glSel(i){glSet(["vselh","vself","vsel"],i>=0?["==",["id"],i]:NONE);}
+  function glHover(i){glSet(["vhov"],i>=0?["==",["id"],i]:NONE);}
+  function glGap(ids){glSet(["vgap"],ids&&ids.length?["in",["id"],["literal",ids]]:NONE);}
+  function glFilter(){if(!gl||!glReady)return;
+    const o=activeDist==null?1:["case",["==",["get","d"],activeDist],1,.25];
+    gl.setPaintProperty("vfill","fill-opacity",o);gl.setPaintProperty("dfill","fill-opacity",o);}
+  // the village under a point: the tiles there have to be on screen to ask them
+  async function glFindAt(lon,lat){const m=gl;
+    m.jumpTo({center:[lon,lat],zoom:Math.max(m.getZoom(),13)});await new Promise(r=>m.once("idle",r));
+    const f=gl===m&&m.queryRenderedFeatures(m.project([lon,lat]),{layers:["vfill"]})[0];return f?f.id:-1;}
+  function glZoomTo(i){
+    gl.fitBounds(fbox(feats[i]),{padding:glPad(phone()?detentPx(detent):0),maxZoom:14.5,duration:600});}
+
   // ---------- overview ----------
   function drawOverview(push){
     loadSeq++;loadingSlug=null;statusEl.classList.remove("show");   // cancel any state still loading
+    glClose();
     detailPending=0;detailChip();
     mode="overview";curSlug=null;feats=[];scene.innerHTML="";activeDist=null;selI=-1;hoverI=-1;
-    $("crumb").innerHTML=`<b>${L("All of India")}</b><span class="meta"> · ${L("{n} states with village data",{n:STATES.filter(s=>s.villages).length})}</span>`;
+    $("crumb").innerHTML=`<b>${L("India Villages")}</b><span class="meta">${L("{n} states with village data",{n:STATES.filter(s=>s.villages).length})}</span>`;
+    closePops();$("stats").innerHTML="";$("statsBtn").hidden=true;
     $("app").classList.remove("in-state");
     $("stateSec").style.display="none";$("statesSec").style.display="flex";info.classList.remove("show");
     setHash("",push);
@@ -750,7 +935,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
       el.setAttribute("class","state"+(f.properties.villages?"":" nod"));
       el.dataset.slug=f.properties.slug;el.__s=s;
       const col=stateCol[s];                       // colour every state; no-data ones muted + dashed
-      el.style.fill=f.properties.villages?col:`color-mix(in srgb,${col} 55%,var(--map-bg))`;
+      el.style.fill=f.properties.villages?tint(col):tint(col,30);
       frag.appendChild(el);});
     ctx.innerHTML="";ctx.appendChild(frag);
     computeStateLabs();
@@ -776,6 +961,20 @@ if (location.hostname === "indianvillage.4080studio.com") {
       for(let j=0,k=0;j<r.length;j+=2,k++){x+=r[j];y+=r[j+1];o[k]=[x/q,y/q];}return o;};
     return {meta:d.meta,features:d.p.map((p,i)=>{const ps=d.g[i].map(poly=>poly.map(ring));
       return {type:"Feature",properties:p,geometry:ps.length===1?{type:"Polygon",coordinates:ps[0]}:{type:"MultiPolygon",coordinates:ps}};})};}
+  // data/tiles/<slug>.attrs.json (build/make_tiles.py): the same villages without shapes, for the GL
+  // map, which draws from tiles. _c is the middle and _m the size of each village, in degrees.
+  function unpackAttrs(d){const q=d.q;let l=0,x=0,y=0;
+    return {meta:d.meta,features:d.n.map((n,i)=>{const p={};
+      if(n!=null)p.n=n;if(d.d[i]>=0)p.d=d.D[d.d[i]];if(d.s[i]>=0)p.s=d.S[d.s[i]];
+      const v=d.l[i];if(typeof v==="number"){l+=v;p.l=String(l);}else if(v!=null)p.l=v;
+      if(d.a[i]!=null)p.a=d.a[i];if(d.c[i])p.c=d.c[i];
+      x+=d.x[i];y+=d.y[i];
+      return {type:"Feature",properties:p,geometry:null,_c:[x/q,y/q],_m:2**(d.z[i]/4)/q};})};}
+  // a village's bounding box, from its shape or (GL) its middle and size
+  function fbox(f){if(!f.geometry){const[x,y]=f._c,h=f._m/2;return[x-h,y-h,x+h,y+h];}
+    let a=1e9,b=1e9,c=-1e9,d=-1e9;
+    eachRing(f.geometry,r=>r.forEach(([lo,la])=>{if(lo<a)a=lo;if(lo>c)c=lo;if(la<b)b=la;if(la>d)d=la;}));
+    return[a,b,c,d];}
   const mb=b=>(b/1048576).toFixed(b<10485760?1:0)+" MB";
   const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
@@ -784,19 +983,28 @@ if (location.hostname === "indianvillage.4080studio.com") {
     if(!meta.villages){cardState(INDIA.findIndex(f=>f.properties.slug===slug));return false;}  // no data yet
     if(slug===loadingSlug)return false;
     const seq=++loadSeq;loadingSlug=slug;detailPending=0;detailChip();
-    const label=L("Loading {s}…",{s:sn(meta)});
-    statusEl.textContent=label;statusEl.classList.add("show");
+    const label=L("Loading {s}…",{s:sn(meta)}), G=useGL();
+    statusEl.textContent=label;
+    if(G)glOpen(slug).catch(()=>{});else{glClose();statusEl.classList.add("show");}   // GL: the map shows while the list loads
     if(window.innerWidth<=860)setNav(false);
-    let data;const stateUrl=ROOT+"data/"+slug+".packed.json?v="+DATA_V;
+    // GL draws from tiles, so the sheet needs only the villages' attributes, not their shapes
+    const packedUrl=ROOT+"data/"+slug+".packed.json?v="+DATA_V;let data,stateUrl=packedUrl;
+    const prog=(got,total)=>{if(seq!==loadSeq)return;
+      statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));};
     try{
-      data=unpack(await fetchJSON(stateUrl,(got,total)=>{if(seq!==loadSeq)return;
-        statusEl.textContent=label+" "+(total?Math.min(99,Math.round(got/total*100))+"%":mb(got));}));
+      if(G)try{stateUrl=ROOT+"data/tiles/"+slug+".attrs.json?v="+DATA_V;data=unpackAttrs(await fetchJSON(stateUrl,prog));}
+        catch(_){stateUrl=packedUrl;statusEl.classList.add("show");}   // no tiles for this state: the whole file, with progress
+      if(!data)data=unpack(await fetchJSON(stateUrl,prog));
     }catch(e){if(seq===loadSeq){loadingSlug=null;
         statusEl.textContent=navigator.onLine===false||e instanceof TypeError     // no connection at all
           ?L("Couldn't reach the server. Offline, only states opened before on this device are available.")
           :L("Could not load {s}",{s:sn(meta)})+" ("+e.message+")";}
       return false;}
     if(seq!==loadSeq)return false;                          // user moved on while this was downloading
+    let useTiles=G;if(G)try{await glOpening;}catch(_){useTiles=false;glClose();}   // no tiles: fall back to SVG
+    if(!useTiles&&!data.features[0].geometry)try{data=unpack(await fetchJSON(stateUrl=packedUrl,prog));}  // ...which needs the shapes
+      catch(_){if(seq===loadSeq){loadingSlug=null;statusEl.textContent=L("Could not load {s}",{s:sn(meta)});}return false;}
+    if(seq!==loadSeq)return false;
     statusEl.textContent=L("Drawing {n} villages…",{n:nf(data.features.length)});
     await nextFrame();                                      // let the status paint before the heavy work
     if(seq!==loadSeq)return false;
@@ -810,10 +1018,11 @@ if (location.hostname === "indianvillage.4080studio.com") {
     mode="state";curSlug=slug;loadingSlug=null;
     activeDist=null;villSearch.value="";runSearch();selI=-1;hoverI=-1;info.classList.remove("show");
     syncHash(push);
-    fitTo(feats);
+    const[w,so,e,n]=useTiles?glMeta.bbox:[];
+    fitTo(feats[0].geometry?feats:[{geometry:{type:"Polygon",coordinates:[[[w,so],[e,n]]]}}]);
     // context: all state outlines (faint), clickable to switch
     const cf=document.createDocumentFragment();
-    INDIA.forEach((f,s)=>{const el=document.createElementNS(NS,"path");
+    if(!useTiles)INDIA.forEach((f,s)=>{const el=document.createElementNS(NS,"path");
       el.setAttribute("d",pathFor(f.geometry));el.dataset.slug=f.properties.slug;
       el.setAttribute("class","ctx"+(f.properties.slug===slug?" here":""));el.__s=s;cf.appendChild(el);});
     ctx.innerHTML="";ctx.appendChild(cf);
@@ -821,29 +1030,34 @@ if (location.hostname === "indianvillage.4080studio.com") {
     // so boundaries and colours look identical): about 75 nodes instead of 100k+
     const dcount={},tset=new Set(),dPath={};
     feats.forEach(f=>{const p=f.properties;const d=p.d||"";
-      dcount[d]=(dcount[d]||0)+1;if(p.s)tset.add(p.s);(dPath[d]||(dPath[d]=[])).push(pathFor(f.geometry));});
+      dcount[d]=(dcount[d]||0)+1;if(p.s)tset.add(p.s);if(!useTiles)(dPath[d]||(dPath[d]=[])).push(pathFor(f.geometry));});
     feats.forEach((f,i)=>{const d=f.properties.d||"";(distIdx[d]||(distIdx[d]=[])).push(i);});
     const dists=Object.keys(dcount).sort();
-    buildGrid();colourDistricts(dists);lastVo=-1;
+    buildGrid();lastVo=-1;
+    // GL: the district colours the tiles were built with, so the list matches the map
+    if(useTiles){distColors={};dists.forEach(n=>distColors[n]=PALETTE[glMeta.ci[n]]);}else colourDistricts(dists);
     const vf=document.createDocumentFragment();
-    dists.forEach(n=>{const el=document.createElementNS(NS,"path");
+    if(!useTiles)dists.forEach(n=>{const el=document.createElementNS(NS,"path");
       el.setAttribute("d",dPath[n].join(""));el.setAttribute("class","dist");
       el.dataset.d=n;el.style.fill=distColor(n);vf.appendChild(el);distEls[n]=el;});
     const mk=c=>{const el=document.createElementNS(NS,"path");el.setAttribute("class",c);vf.appendChild(el);return el;};
     const tbEl=mk("tb"),dbEl=mk("db");
     gapEl=mk("vgap");hoverEl=mk("vhi");selH=mk("vselh");selEl=mk("vsel");
-    loadLines(slug,seq,tbEl,dbEl);
-    scene.innerHTML="";scene.appendChild(vf);
-    computeDistrictLabs(dists);buildGapBox(slug);
+    if(useTiles){scene.innerHTML="";hoverEl=selEl=selH=null;}          // the tiles draw it all
+    else{loadLines(slug,seq,tbEl,dbEl);scene.innerHTML="";scene.appendChild(vf);computeDistrictLabs(dists);}
+    buildGapBox(slug);
     k=1;tx=0;ty=0;apply();
     // sidebar district list
-    $("crumb").innerHTML=`<b>${esc(sn(meta))}</b><span class="meta"> · ${L("{v} villages · {d} districts · {t} taluks",{v:nf(feats.length),d:dists.length,t:tset.size})}</span>`;
+    $("crumb").innerHTML=`<b>${esc(sn(meta))}</b>`;
+    $("stats").innerHTML=[[nf(feats.length),"Villages"],[dists.length,"Districts"],[tset.size,"Taluks"]]
+      .map(([n,t])=>`<div><b>${n}</b><span>${L(t)}</span></div>`).join("");
+    closePops();$("statsBtn").hidden=false;
     $("app").classList.add("in-state");
-    $("distLbl").innerHTML=L("<b>{n}</b> districts",{n:dists.length});
+    $("distLbl").textContent=L("Districts");                // the count is already in the title
     const dl=$("distList");dl.innerHTML="";
     dists.forEach(n=>{const el=document.createElement("div");el.className="row";el.dataset.d=n;
       el.tabIndex=0;el.setAttribute("role","button");el.setAttribute("aria-pressed","false");
-      el.innerHTML=`<span class="sw" style="background:${distColors[n]}"></span>
+      el.innerHTML=`<span class="sw" style="background:${distColor(n)}"></span>
         <span class="nm">${n?esc(cap(n)):'<span class="nr">'+L("District not in source")+'</span>'}</span><span class="ct">${nf(dcount[n])}</span>`;
       el.onclick=()=>{activeDist=activeDist===n?null:n;if(activeDist!=null)track("district_filtered",{district:n});
         [...dl.children].forEach(c=>{const on=c.dataset.d===activeDist;c.classList.toggle("selrow",on);c.setAttribute("aria-pressed",on);});
@@ -875,10 +1089,11 @@ if (location.hostname === "indianvillage.4080studio.com") {
     .then(r=>r.ok?r.json():null).catch(()=>{delete popFiles[slug];return null;}));}
   async function loadPop(i){const slug=curSlug;if(popSlug===slug)return;
     const d=await popFile(slug);if(!d||slug!==curSlug)return;pop=d.p;popSlug=slug;
-    if(i===selI&&info.classList.contains("show")){const dl=info.querySelector("dl");if(dl)dl.innerHTML+=popRow(i);}}
+    if(i===selI&&info.classList.contains("show")){const dl=info.querySelector("dl");if(dl&&!dl.textContent.includes(L("Population (2011)")))cardVillage(i);}}
 
   // ---------- spatial grid + hover hit-testing ----------
   function buildGrid(){
+    if(!feats[0]||!feats[0].geometry){gGN=0;gcells=[];return;}     // GL: the tiles hit-test
     let mnLon=1e9,mnLat=1e9,mxLon=-1e9,mxLat=-1e9;
     const bb=feats.map(f=>{let a=1e9,b=1e9,c=-1e9,d=-1e9;
       eachRing(f.geometry,r=>r.forEach(([lo,la])=>{if(lo<a)a=lo;if(lo>c)c=lo;if(la<b)b=la;if(la>d)d=la;}));
@@ -971,20 +1186,18 @@ if (location.hostname === "indianvillage.4080studio.com") {
 
   // ---------- village search / district filter ----------
   const villSearch=$("villSearch");
-  function applyFilter(){scene.querySelectorAll("path.dist").forEach(p=>
+  function applyFilter(){glFilter();scene.querySelectorAll("path.dist").forEach(p=>
     p.classList.toggle("dim",activeDist&&p.dataset.d!==activeDist));scheduleLabels();
-    const dl=$("distDl");dl.innerHTML=activeDist==null?"":
-      `${L("Download")} <button class="linkbtn" data-fmt="geojson">GeoJSON</button> · <button class="linkbtn" data-fmt="kml">KML</button>`;
-    dl.querySelectorAll("[data-fmt]").forEach(b=>b.onclick=()=>{const idx=distIdx[activeDist];
-      track("boundary_downloaded",{what:"district",district:activeDist,format:b.dataset.fmt,villages:idx?idx.length:0});
-      download(idx,b.dataset.fmt);});}
-  function zoomToFeature(i){let a=1e9,b=1e9,c=-1e9,d=-1e9;
+    const dl=$("distDl");dl.hidden=activeDist==null;
+    dl.onclick=()=>{const d=activeDist,idx=distIdx[d];openDownload(dl,f=>{
+      track("boundary_downloaded",{what:"district",district:d,format:f,villages:idx?idx.length:0});download(idx,f);});};}
+  function zoomToFeature(i){if(gl){glZoomTo(i);return;}let a=1e9,b=1e9,c=-1e9,d=-1e9;
     eachRing(feats[i].geometry,r=>r.forEach(([lo,la])=>{const[mx,my]=merc(lo,la),X=px(mx),Y=py(my);
       if(X<a)a=X;if(X>c)c=X;if(Y<b)b=Y;if(Y>d)d=Y;}));
     const bw=c-a||10,bh=d-b||10;k=Math.min(40,Math.max(3,.5*Math.min(PW/bw,PH/bh)));
     tx=PW/2-(a+c)/2*k;ty=PH/2-(b+d)/2*k;
-    // phones: the info card covers the bottom of the map, so centre the village in the space above it
-    if(window.innerWidth<=860&&info.classList.contains("show"))ty-=(info.offsetHeight+12)/2/svg.getScreenCTM().a;
+    // phones: the sheet covers the bottom of the map, so centre the village in the space above it
+    if(phone())ty-=(detentPx(detent)-peekPx())/2/svg.getScreenCTM().a;
     clamp();apply();}
   // Every word must appear in "village taluk district" ("rampur bareilly" narrows 217 Rampurs to
   // one district). Ranked: exact name, then name prefix, then name contains, then taluk/district hits.
@@ -992,7 +1205,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
   let resIdx=[], resOn=-1;
   function hlName(name,t){const k=name.toLowerCase().indexOf(t);if(!t||k<0)return esc(name);
     return esc(name.slice(0,k))+"<mark>"+esc(name.slice(k,k+t.length))+"</mark>"+esc(name.slice(k+t.length));}
-  function hoverVillage(i){hoverI=i;if(hoverEl)hoverEl.setAttribute("d",i<0?"":pathFor(feats[i].geometry));}
+  function hoverVillage(i){hoverI=i;if(gl)glHover(i);if(hoverEl)hoverEl.setAttribute("d",i<0?"":pathFor(feats[i].geometry));}
   function runSearch(){
     const raw=villSearch.value.trim(), q=raw.toLowerCase(), sec=$("stateSec");
     resBox.dataset.q=q;
@@ -1012,14 +1225,14 @@ if (location.hostname === "indianvillage.4080studio.com") {
     hits.sort((a,b)=>a[0]-b[0]||(feats[a[1]]._n<feats[b[1]]._n?-1:feats[a[1]]._n>feats[b[1]]._n?1:0));
     resIdx=hits.slice(0,RES_MAX).map(h=>h[1]);resOn=resIdx.length?0:-1;
     const scope=activeDist?" "+L("in {d}",{d:esc(cap(activeDist))}):"";
-    resSum.innerHTML=!hits.length?"":L(hits.length===1?"<b>1</b> village":"<b>{n}</b> villages",{n:nf(hits.length)})+scope+
+    resSum.innerHTML=!hits.length||(hits.length<=RES_MAX&&!activeDist)?"":L(hits.length===1?"<b>1</b> village":"<b>{n}</b> villages",{n:nf(hits.length)})+scope+
       (hits.length>RES_MAX?" · "+L("showing first {n}. Add a taluk or district name to narrow.",{n:RES_MAX}):"");
     resBox.innerHTML=hits.length?resIdx.map((i,j)=>{const p=feats[i].properties;
       return `<button class="res" id="res${j}" role="option" data-j="${j}" tabindex="-1">
         <span class="rn">${p.n?hlName(p.n,t0):'<span class="nr">'+L("Unnamed")+'</span>'+(p.l?" · LGD "+esc(p.l):" · "+L("no LGD code"))}</span>
         <span class="rm"><span class="sw" style="background:${distColor(p.d)}"></span>${esc(cap(p.s))} · ${esc(cap(p.d))}</span></button>`;}).join("")
       :`<p class="rempty">${L("No villages match “{q}”",{q:esc(raw)})}${scope}.`+
-        (activeDist?` <button class="linkbtn" id="allDists">${L("Search all districts")}</button>`:"")+`</p>`;
+        (activeDist?` <button class="tbtn" id="allDists">${L("Search all districts")}</button>`:"")+`</p>`;
     const all=$("allDists");if(all)all.onclick=()=>{activeDist=null;
       [...$("distList").children].forEach(c=>c.classList.remove("selrow"));applyFilter();runSearch();villSearch.focus();};
     sec.classList.add("searching");villSearch.setAttribute("aria-expanded","true");
@@ -1049,7 +1262,6 @@ if (location.hostname === "indianvillage.4080studio.com") {
   // ---------- sidebar state list ----------
   function hoverState(slug,on){const p=ctx.querySelector('path[data-slug="'+slug+'"]');if(p)p.classList.toggle("hl",on);}
   function buildStateList(){const wrap=$("stateList");wrap.innerHTML="";
-    $("stateCount").textContent=STATES.length;
     STATES.forEach(s=>{const el=document.createElement("div");
       el.className="row"+(s.villages?"":" nodata");el.dataset.slug=s.slug;el.tabIndex=0;el.setAttribute("role","button");
       el.innerHTML=`<span class="nm">${esc(sn(s))}</span>`+
@@ -1143,7 +1355,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
     const sec=$("statesSec"), seq=++nSeq, num=/^\d+$/.test(t0);
     if(t0.length<2){sec.classList.remove("vsearch");ss.setAttribute("aria-expanded","false");nClear();return;}
     sec.classList.add("vsearch");ss.setAttribute("aria-expanded","true");
-    let key;
+    let key;if(!nSplit||!nRows.length)nSum.textContent=L("Searching villages…");
     if(num)key="lgd-"+t0.slice(0,2);
     else{if(!nSplit){const ix=await nFile("index");if(seq!==nSeq)return;
         if(!ix){nClear(L("Village search could not load. Check your connection and try again."));return;}
@@ -1166,7 +1378,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
     hits.sort((a,b)=>a[0]-b[0]);                          // files are already in name order
     trackSearch("india",raw,hits.length);
     nRows=hits.slice(0,N_MAX).map(h=>h[1]);nOn=-1;
-    nSum.innerHTML=!hits.length?"":L(hits.length===1?"<b>1</b> village across India":"<b>{n}</b> villages across India",{n:nf(hits.length)})+
+    nSum.innerHTML=hits.length<=N_MAX?"":L(hits.length===1?"<b>1</b> village across India":"<b>{n}</b> villages across India",{n:nf(hits.length)})+
       (hits.length>N_MAX?" · "+L("showing first {n}. Add a district or state name to narrow.",{n:N_MAX}):"");
     nBox.innerHTML=hits.length?nRows.map((r,j)=>{const v=r.v;
       const nm=v[0]?(num?esc(v[0]):hlName(v[0],t0)):'<span class="nr">'+L("Unnamed")+'</span>';
@@ -1206,17 +1418,73 @@ if (location.hostname === "indianvillage.4080studio.com") {
   nBox.addEventListener("pointerleave",()=>{nOn=-1;nMark(false);});
 
   $("backBtn").onclick=()=>drawOverview(true);
-  function setNav(open){$("app").classList.toggle("nav-open",open);$("menuBtn").setAttribute("aria-expanded",open);}
-  $("menuBtn").onclick=()=>setNav(!$("app").classList.contains("nav-open"));
-  $("backdrop").onclick=()=>setNav(false);
-  $("upBtn").onclick=()=>drawOverview(true);
-  addEventListener("keydown",e=>{if(e.key==="Escape"&&$("app").classList.contains("nav-open")&&!about.open){setNav(false);$("menuBtn").focus();}});
+  // ---------- the sheet on phones: three heights, dragged by its top ----------
+  const sheet=$("sidebar"), phone=()=>innerWidth<=860;
+  let detent=curRoute()?"half":"peek";                 // the India overview opens with just the search showing
+  const peekPx=()=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--peek"))||0;
+  function detentPx(d){const H=$("body").clientHeight;return d==="peek"?peekPx():d==="full"?H-8:Math.round(H*.5);}
+  function setDetent(d,instant){detent=d;if(!phone())return;
+    if(instant)sheet.classList.add("dragging");                   // no slide on load or resize
+    sheet.style.setProperty("--sh",detentPx(d)+"px");
+    if(instant){void sheet.offsetHeight;sheet.classList.remove("dragging");}}
+  // after picking something on a phone, show the map with the sheet at half height
+  function setNav(open){if(phone())setDetent(open?"full":"half");}
+  addEventListener("resize",()=>setDetent(detent,true));
+  setDetent(detent,true);
+  let drag=null;
+  sheet.addEventListener("pointerdown",e=>{if(!phone()||!e.target.closest("#grab,.sheet-head")||e.target.closest("button,input"))return;
+    drag={y:e.clientY,h:sheet.offsetHeight,t:performance.now(),moved:0};sheet.classList.add("dragging");sheet.setPointerCapture(e.pointerId);});
+  sheet.addEventListener("pointermove",e=>{if(!drag)return;const dy=e.clientY-drag.y;drag.moved=Math.max(drag.moved,Math.abs(dy));
+    sheet.style.setProperty("--sh",Math.max(peekPx(),Math.min(detentPx("full"),drag.h-dy))+"px");});
+  function endDrag(e){if(!drag)return;sheet.classList.remove("dragging");
+    const h=sheet.offsetHeight, v=(drag.h-h)/Math.max(1,performance.now()-drag.t);   // px per ms, up is positive
+    let d;if(drag.moved<6)d=detent==="peek"?"half":detent==="half"?"full":"half";       // a tap on the handle steps up
+    else if(Math.abs(v)>.5)d=v>0?(h>detentPx("half")?"full":"half"):(h<detentPx("half")?"peek":"half");
+    else d=["peek","half","full"].reduce((a,b)=>Math.abs(detentPx(b)-h)<Math.abs(detentPx(a)-h)?b:a);
+    drag=null;setDetent(d);}
+  sheet.addEventListener("pointerup",endDrag);sheet.addEventListener("pointercancel",endDrag);
+  ["stateSearch","villSearch"].forEach(id=>$(id).addEventListener("focus",()=>{if(phone())setDetent("full");}));
+
+  // ---------- overlays anchored to a button (state figures, data gaps) ----------
+  // Below the button, or beside the sheet on desktop when side is set; outside clicks and Escape close them.
+  function closePops(){document.querySelectorAll(".pop").forEach(p=>{if(p.hidden)return;p.hidden=true;if(p._a)p._a.setAttribute("aria-expanded","false");});}
+  function togglePop(pop,anchor,side){const was=!pop.hidden;closePops();if(was)return;
+    pop.hidden=false;pop._a=anchor;anchor.setAttribute("aria-expanded","true");
+    const r=anchor.getBoundingClientRect(), w=pop.offsetWidth, h=pop.offsetHeight;let x,y;
+    if(side&&!phone()){x=sheet.getBoundingClientRect().right+10;y=r.top+r.height/2-h/2;}
+    else{x=r.left;y=r.bottom+6+h<innerHeight?r.bottom+6:r.top-6-h;}
+    pop.style.left=Math.max(8,Math.min(innerWidth-w-8,x))+"px";pop.style.top=Math.max(8,Math.min(innerHeight-h-8,y))+"px";}
+  addEventListener("pointerdown",e=>{document.querySelectorAll(".pop").forEach(p=>{
+    if(!p.hidden&&!p.contains(e.target)&&!(p._a&&p._a.contains(e.target))){p.hidden=true;if(p._a)p._a.setAttribute("aria-expanded","false");}});});
+  addEventListener("keydown",e=>{const p=[...document.querySelectorAll(".pop")].find(p=>!p.hidden);if(e.key==="Escape"&&p){closePops();if(p._a)p._a.focus();}});
+  addEventListener("resize",closePops);
+  $("statsBtn").onclick=()=>togglePop($("statsPop"),$("statsBtn"));
+  // Download: one overlay for a village or a district, GeoJSON or KML (and the embed code for a village)
+  function openDownload(anchor,onFmt,onEmbed){const pop=$("dlPop");
+    if(!pop.hidden&&pop._a===anchor){closePops();return;}
+    pop.innerHTML=`<h2>${L("Download")}</h2><div class="opts"><button class="cbtn" data-fmt="geojson">GeoJSON</button><button class="cbtn" data-fmt="kml">KML</button>`+
+      (onEmbed?`<button class="cbtn" data-embed>${L("Embed")}</button>`:"")+`</div>`;
+    pop.querySelectorAll("[data-fmt]").forEach(b=>b.onclick=()=>{closePops();onFmt(b.dataset.fmt);});
+    const e=pop.querySelector("[data-embed]");if(e)e.onclick=()=>{closePops();onEmbed();};
+    pop.hidden=true;togglePop(pop,anchor);}
+
+  // ---------- settings menu ----------
+  const menu=$("menu"), moreBtn=$("moreBtn");
+  function openMenu(on){menu.hidden=!on;moreBtn.setAttribute("aria-expanded",on);
+    if(!on)return;syncQualityUI();syncThemeUI();
+    const r=moreBtn.getBoundingClientRect(), w=menu.offsetWidth, h=menu.offsetHeight;
+    menu.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+"px";
+    menu.style.top=(r.bottom+6+h<innerHeight?r.bottom+6:Math.max(8,r.top-6-h))+"px";
+    menu.querySelector(".mi").focus();}
+  moreBtn.onclick=()=>openMenu(menu.hidden);
+  addEventListener("pointerdown",e=>{if(!menu.hidden&&!menu.contains(e.target)&&!moreBtn.contains(e.target))openMenu(false);});
+  addEventListener("keydown",e=>{if(e.key==="Escape"&&!menu.hidden){openMenu(false);moreBtn.focus();}});
   // ---------- about the data ----------
   const about=$("about");
   $("aboutBtn").onclick=()=>{const miss=STATES.filter(s=>!s.villages).map(sn);
     $("aboutReleased").textContent=L("{a} of India's {b} states and UTs are in the public release so far.",{a:STATES.length-miss.length,b:STATES.length})+" "+
       (miss.length?L("Not yet released: {list}.",{list:miss.join(", ")}):"");
-    syncQualityUI();about.showModal();};
+    openMenu(false);about.showModal();};
   $("aboutClose").onclick=()=>about.close();
   about.addEventListener("click",e=>{if(e.target===about)about.close();});   // click on the backdrop
 
@@ -1239,18 +1507,26 @@ if (location.hostname === "indianvillage.4080studio.com") {
     const TXT={noName:"<b>{n}</b> villages ({p}) have no name",noLgd:"<b>{n}</b> villages ({p}) have no LGD code",
       dupLgd:"<b>{n}</b> villages ({p}) share an LGD code with another village",noTaluk:"<b>{n}</b> villages ({p}) have no taluk",
       noCat:"<b>{n}</b> villages ({p}) have no category",underProc:"<b>{n}</b> villages ({p}) are marked “Under process”"};
+    const ONE={noName:"<b>{n}</b> village ({p}) has no name",noLgd:"<b>{n}</b> village ({p}) has no LGD code",
+      noTaluk:"<b>{n}</b> village ({p}) has no taluk",noCat:"<b>{n}</b> village ({p}) has no category",
+      underProc:"<b>{n}</b> village ({p}) is marked “Under process”"};
     const rows=Object.keys(TXT).filter(key=>g[key].length).map(key=>
-      `<li><span>${L(TXT[key],{n:nf(g[key].length),p:pct(g[key].length)})}</span>
-        <button class="linkbtn" data-gap="${key}" aria-pressed="false">${L("Show")}</button></li>`);
+      `<li><span>${L(g[key].length===1&&ONE[key]||TXT[key],{n:nf(g[key].length),p:pct(g[key].length)})}</span>
+        <button class="tbtn" data-gap="${key}" aria-pressed="false">${L("Show")}</button></li>`);
     if(STATE_NOTES[slug])rows.push(`<li><span>${STATE_NOTES[slug]}</span></li>`);
-    $("gapBox").innerHTML=`<p class="gh">${L("Gaps in the source data")}</p>`+(rows.length?`<ul>${rows.join("")}</ul>`
-      :`<p class="ok" style="margin:0">${L("Every village has a name, LGD code and taluk in the source.")}</p>`);}
-  $("gapBox").addEventListener("click",e=>{const b=e.target.closest("[data-gap]");if(!b)return;
+    // one row in the sheet; the detail opens in an overlay beside it
+    $("gapPop").innerHTML=rows.length?`<h2>${L("Gaps in the source data")}</h2><ul>${rows.join("")}</ul>`:"";
+    $("gapBox").innerHTML=rows.length
+      ?`<button class="gh" aria-haspopup="dialog" aria-expanded="false" aria-controls="gapPop"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>${L("Gaps in the source data")}</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`
+      :`<p class="gh"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>${L("Every village has a name, LGD code and taluk in the source.")}</span></p>`;}
+  $("gapBox").addEventListener("click",e=>{const t=e.target.closest("button.gh");if(t)togglePop($("gapPop"),t,true);});
+  $("gapPop").addEventListener("click",e=>{
+    const b=e.target.closest("[data-gap]");if(!b)return;
     const key=b.dataset.gap;gapOn=gapOn===key?null:key;
-    $("gapBox").querySelectorAll("[data-gap]").forEach(x=>{const on=x.dataset.gap===gapOn;
+    $("gapPop").querySelectorAll("[data-gap]").forEach(x=>{const on=x.dataset.gap===gapOn;
       x.setAttribute("aria-pressed",on);x.textContent=L(on?"Hide":"Show");});
-    gapEl.setAttribute("d",gapOn?gapSets[gapOn].map(i=>pathFor(feats[i].geometry)).join(""):"");
-    if(gapOn&&window.innerWidth<=860)setNav(false);});
+    if(gl)glGap(gapOn?gapSets[gapOn]:null);else gapEl.setAttribute("d",gapOn?gapSets[gapOn].map(i=>pathFor(feats[i].geometry)).join(""):"");
+    if(gapOn&&phone()){closePops();setNav(false);}});
 
   // ---------- labels ----------
   // State / district / village names in an HTML layer. Each label sits on the widest horizontal
@@ -1304,7 +1580,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
         if(q[2]<a[0]||q[0]>b[0]||q[3]<a[1]||q[1]>b[1])continue;out.push(i);if(out.length>max)return null;}}
     return out;}
   function scheduleLabels(){if(!labRAF)labRAF=requestAnimationFrame(layoutLabels);}
-  function layoutLabels(){labRAF=0;
+  function layoutLabels(){labRAF=0;if(gl){labelsEl.innerHTML="";return;}
     const m=world.getScreenCTM(),r=$("stage").getBoundingClientRect();if(!m||!r.width){labelsEl.innerHTML="";return;}
     const S=m.a,ox=m.e-r.left,oy=m.f-r.top,W=r.width,H=r.height,placed=[],out=[];
     const put=(cls,t,x,y,room,slack,extra)=>{const sx=x*S+ox,sy=y*S+oy;
@@ -1363,9 +1639,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
     autoLite=!!liteReason;})();
   const isLite=()=>qualityPref==="lite"||(qualityPref!=="hq"&&autoLite);
   function markSlow(reason){if(autoLite)return;autoLite=true;liteReason=reason;track("lite_mode_on",{reason});updateQBtn();scheduleLabels();}
-  function updateQBtn(){const on=!isLite(),b=$("qBtn");b.setAttribute("aria-pressed",on);
-    b.title=on?L("Full detail is on. Click for simplified boundaries (faster)")
-              :L("Simplified boundaries")+(qualityPref==="lite"?"":" ("+liteReason+")")+". "+L("Click for full detail");}
+  function updateQBtn(){if(!menu.hidden)syncQualityUI();}
   // bytes per second over the wire for a finished fetch; null if cached, tiny or unknown
   function wireSpeed(url){const e=performance.getEntriesByName(new URL(url,location.href).href).pop();
     if(!e||!e.transferSize||e.encodedBodySize<250*1024)return null;
@@ -1382,15 +1656,13 @@ if (location.hostname === "indianvillage.4080studio.com") {
     if(!isLite()){showQualityTip(false);if(selI>=0)loadDetail(feats[selI].properties.d||"");}
     tipDismissed=false;updateQBtn();scheduleLabels();}
   $("hqBtn").onclick=()=>setQuality("hq");
-  $("qBtn").onclick=()=>setQuality(isLite()?"hq":"lite");
   $("qtClose").onclick=()=>{tipDismissed=true;showQualityTip(false);};
-  document.querySelectorAll('#about input[name="quality"]').forEach(r=>r.onchange=()=>{setQuality(r.value);syncQualityUI();});
+  document.querySelectorAll('#menu input[name="quality"]').forEach(r=>r.onchange=()=>{setQuality(r.value);syncQualityUI();});
   updateQBtn();
   function syncQualityUI(){const v=qualityPref||"auto";
-    document.querySelectorAll('#about input[name="quality"]').forEach(r=>r.checked=r.value===v);
+    document.querySelectorAll('#menu input[name="quality"]').forEach(r=>r.checked=r.value===v);
     $("qualityNote").textContent=qualityPref?"":autoLite
-      ?L("Auto is using simplified boundaries because {r}.",{r:liteReason})
-      :L("Auto loads full detail when you zoom in, unless your connection or device looks slow.");}
+      ?L("Auto is using simplified boundaries because {r}.",{r:liteReason}):"";}
   function detailChip(){const c=$("detailChip");c.textContent=detailPending?L("Loading full detail…"):"";
     c.classList.toggle("show",detailPending>0);}
   function loadDetail(n){
@@ -1418,9 +1690,11 @@ if (location.hostname === "indianvillage.4080studio.com") {
   // map yet (lite mode, or zoomed out). Attributes are written out as the source has them.
   async function fullGeometry(idx){
     const byD={};idx.forEach(i=>{const d=feats[i].properties.d||"";(byD[d]||(byD[d]=[])).push(i);});
-    const geom={};
+    const geom={};let whole=null;          // GL keeps no shapes: a district without its own file comes from the state's
     for(const n in byD){
-      if(detailState[n]==="full"||!detailFiles||!(n in detailFiles)){byD[n].forEach(i=>geom[i]=feats[i].geometry);continue;}
+      if(detailState[n]==="full"||!detailFiles||!(n in detailFiles)){
+        if(!feats[byD[n][0]].geometry&&!whole)whole=unpack(await fetch(`${ROOT}data/${curSlug}.packed.json?v=${DATA_V}`).then(r=>{if(!r.ok)throw 0;return r.json();})).features;
+        byD[n].forEach(i=>geom[i]=(whole?whole[i]:feats[i]).geometry);continue;}
       const d=await fetch(`${ROOT}data/${curSlug}/${detailFiles[n]}.packed.json?v=${DATA_V}`).then(r=>{if(!r.ok)throw 0;return r.json();});
       const F=unpack(d).features, all=distIdx[n];
       if(F.length!==all.length)throw 0;
@@ -1462,7 +1736,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
   let toastT;
   function toast(msg){const t=$("toast");t.querySelector(".qt").textContent=msg;t.classList.add("show");
     clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),8000);}
-  $("toast").querySelector(".dx").onclick=()=>$("toast").classList.remove("show");
+  $("toast").querySelector(".xbtn").onclick=()=>$("toast").classList.remove("show");
   const locBtn=$("locBtn");
   locBtn.onclick=()=>{
     if(!navigator.geolocation){toast(L("This browser can't share your location."));return;}
@@ -1479,14 +1753,15 @@ if (location.hostname === "indianvillage.4080studio.com") {
     const p=INDIA[s].properties;
     if(!p.villages){toast(L("You're in {s}. The Survey of India hasn't released village data for it yet.",{s:sn(p)}));return;}
     if(!(mode==="state"&&curSlug===p.slug)&&!await enterState(p.slug))return;
-    const i=hitTest(lon,lat);
+    const i=gl?await glFindAt(lon,lat):hitTest(lon,lat);
     if(i>=0){setSelect(i,true);return;}
     toast(L("No village boundary at your spot in {s}. You may be in a town, a forest or on a state border.",{s:sn(p)}));}
 
-  $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme");
-    const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
-    const next=dark?"light":"dark";document.documentElement.setAttribute("data-theme",next);
-    try{localStorage.setItem("theme",next);}catch(_){}};
+  function syncThemeUI(){const cur=THEME;
+    document.querySelectorAll('#menu input[name="theme"]').forEach(r=>r.checked=r.value===cur);}
+  document.querySelectorAll('#menu input[name="theme"]').forEach(r=>r.onchange=()=>{const v=r.value;
+    THEME=v;if(v==="system")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",v);
+    try{v==="light"?localStorage.removeItem("theme"):localStorage.setItem("theme",v);}catch(_){}});   // nothing saved means light
 
   // offline use: keeps the app and every state opened so far on the device (dist/sw.js)
   if(PATHS&&!EMBED&&"serviceWorker" in navigator)
