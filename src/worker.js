@@ -1,4 +1,5 @@
-// Serves the static app, proxies /data/* from the R2 bucket, gives state and village pages
+// Serves the static app, proxies /data/* from the R2 bucket, serves map tiles (/tiles/*) out of
+// each state's PMTiles archive in R2, gives state and village pages
 // (/goa, /goa/626863) their own title, link preview and text, serves the sitemaps, and
 // relays PostHog analytics through this domain (/relay/*).
 //
@@ -13,6 +14,8 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/relay/")) return relay(request, url);
+
+    if (url.pathname.startsWith("/tiles/")) return tile(request, env, ctx, url);
 
     if (url.pathname.startsWith("/data/")) {
       if (request.method !== "GET" && request.method !== "HEAD")
@@ -31,6 +34,7 @@ export default {
       }
 
       const key = decodeURIComponent(url.pathname.slice("/data/".length));
+      if (key.endsWith(".pmtiles")) return new Response("Not found", { status: 404 });   // read through /tiles/
       const obj = await env.DATA.get(key);
       if (!obj) return new Response("Not found", { status: 404 });
 
@@ -101,7 +105,7 @@ async function page(env, url, slug, lgd, embed) {
   let title = `${st.name} villages`;
   let desc = (st.villages ? `${num(st.villages)} village boundaries` : "Every village boundary") +
     ` in ${st.name}, from the Survey of India. Search any village by name or LGD code.`;
-  let path = `/${slug}`;
+  let path = `/${slug}`, head = st.name;            // head: the visible heading, before the app runs
   let body = `<h1>Villages of ${esc(st.name)}</h1><p>${esc(desc)}</p><p><a href="/">All of India</a></p>`;
 
   if (lgd && /^\d+$/.test(lgd)) {
@@ -117,7 +121,7 @@ async function page(env, url, slug, lgd, embed) {
         (area != null ? ` Area ${area} km².` : "") +
         (nbrs.length ? ` Borders ${nbrs.slice(0, 3).map(n => n[1] || n[0]).join(", ")}${nbrs.length > 3 ? " and more" : ""}.` : "") +
         " Survey of India data.";
-      path = `/${slug}/${lgd}`;
+      path = `/${slug}/${lgd}`; head = nm;
       const link = ([l, n]) => l ? `<a href="/${slug}/${esc(l)}">${esc(n || "Village " + l)}</a>` : esc(n || "an unnamed village");
       body = `<h1>${esc(nm)} village, ${esc(dist || st.name)}</h1>` +
         `<p>${esc(nm)} is a village in ${esc(where)}. Its LGD code is ${esc(lgd)}` +
@@ -141,7 +145,8 @@ async function page(env, url, slug, lgd, embed) {
     // embeds live on other sites: keep them out of search results, and point to the real page
     .on('link[rel="canonical"]', { element: e => { if (embed) e.after('<meta name="robots" content="noindex">', { html: true }); } })
     .on("title", { element: e => e.setInnerContent(`${title} · ${SITE}`) })
-    .on("#seo", { element: e => e.setInnerContent(body, { html: true }) });
+    .on("#seo", { element: e => e.setInnerContent(body, { html: true }) })
+    .on("#crumb", { element: e => e.setInnerContent(`<b>${esc(head)}</b>`, { html: true }) });
   for (const [attr, v, sel] of tags) rw = rw.on(sel, { element: e => e.setAttribute(attr, v) });
   const res = rw.transform(app);
   const headers = new Headers(res.headers);
@@ -215,6 +220,110 @@ async function apiAnswer(env, url) {
       [`${origin}/api/village/<state>/<lgd>.geojson`]: "the village boundary as a GeoJSON Feature, every surveyed point",
     }, example: `${origin}/api/village/626847`, source: CREDIT });
   return json({ error: "Not found. See /api" }, 404);
+}
+
+// ---------- map tiles ----------
+// /tiles/<state>/<z>/<x>/<y>.pbf, read from tiles/<state>.pmtiles in R2 (build/make_tiles.py).
+// The browser asks for plain tiles, so each one is cached at the edge on its own and the page
+// needs no PMTiles code. An archive is a header, a directory of tile ids (Hilbert order, zoom
+// by zoom) and the tiles; the header and directories are kept per isolate, the tiles in the
+// edge cache. https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md
+const TILE_HEADERS = { "content-type": "application/vnd.mapbox-vector-tile", "access-control-allow-origin": "*",
+  "cache-control": "public, max-age=31536000, immutable" };
+const archives = new Map();                          // key -> {etag, h (header numbers), root, leaves}
+
+async function tile(request, env, ctx, url) {
+  if (request.method !== "GET" && request.method !== "HEAD")
+    return new Response("Method not allowed", { status: 405, headers: { allow: "GET, HEAD" } });
+  const m = url.pathname.match(/^\/tiles\/([a-z-]+)\/(\d+)\/(\d+)\/(\d+)\.pbf$/);
+  if (!m) return new Response("Not found", { status: 404 });
+  const hit = await caches.default.match(request);
+  if (hit) return hit;
+  const [z, x, y] = m.slice(2).map(Number), key = `tiles/${m[1]}.pmtiles`;
+  if (z > 30 || x >= 2 ** z || y >= 2 ** z) return new Response("Not found", { status: 404 });
+  let res;
+  for (let tries = 0; !res && tries < 2; tries++) {   // twice: the archive may have been replaced since it was read
+    const a = await archive(env, key);
+    if (!a) return new Response("Not found", { status: 404 });
+    const at = await find(env, key, a, zxyToId(z, x, y));
+    if (at === null) { res = new Response(null, { status: 204, headers: TILE_HEADERS }); break; }   // no tile: nothing there
+    if (at === undefined) { archives.delete(key); continue; }
+    const obj = await env.DATA.get(key, { range: { offset: a.h.tileData + at[0], length: at[1] }, onlyIf: { etagMatches: a.etag } });
+    if (!obj || !("body" in obj)) { archives.delete(key); continue; }
+    // tippecanoe gzips each tile: pass it through as it is, and the browser unpacks it
+    res = new Response(obj.body, { headers: a.h.gzip ? { ...TILE_HEADERS, "content-encoding": "gzip" } : TILE_HEADERS,
+      encodeBody: a.h.gzip ? "manual" : "automatic" });
+  }
+  if (!res) return new Response("Tiles changed while reading. Try again.", { status: 503 });
+  if (request.method === "GET") ctx.waitUntil(caches.default.put(request, res.clone()));
+  return request.method === "HEAD" ? new Response(null, res) : res;
+}
+
+// the header and root directory, from the first 16 KB (the spec keeps the root directory there)
+async function archive(env, key) {
+  if (!archives.has(key)) {
+    archives.set(key, (async () => {
+      const obj = await env.DATA.get(key, { range: { offset: 0, length: 16384 } });
+      if (!obj) return null;
+      const b = new Uint8Array(await obj.arrayBuffer()), v = new DataView(b.buffer);
+      if (new TextDecoder().decode(b.subarray(0, 7)) !== "PMTiles" || b[7] !== 3) return null;
+      const u64 = o => v.getUint32(o, true) + v.getUint32(o + 4, true) * 2 ** 32;
+      const h = { root: u64(8), rootLen: u64(16), leaves: u64(40), tileData: u64(56), inner: b[97], gzip: b[98] === 2 };
+      return { etag: obj.etag, h, root: await directory(b.subarray(h.root, h.root + h.rootLen), h.inner), leaves: new Map() };
+    })().catch(() => null));
+  }
+  const a = await archives.get(key);
+  if (!a) archives.delete(key);
+  return a;
+}
+
+// a directory: entry count, then tile ids (as differences), run lengths, lengths and offsets,
+// each a column of varints (an offset of 0 means "right after the previous tile")
+async function directory(bytes, compression) {
+  if (compression === 2) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream()
+    .pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  else if (compression !== 1) throw new Error("unsupported directory compression");
+  let p = 0;
+  const vint = () => { let n = 0, f = 1, c; do { c = bytes[p++]; n += (c & 127) * f; f *= 128; } while (c & 128); return n; };
+  const n = vint(), ids = new Array(n), runs = new Array(n), lens = new Array(n), offs = new Array(n);
+  for (let i = 0, id = 0; i < n; i++) ids[i] = id += vint();
+  for (let i = 0; i < n; i++) runs[i] = vint();
+  for (let i = 0; i < n; i++) lens[i] = vint();
+  for (let i = 0; i < n; i++) { const o = vint(); offs[i] = o === 0 && i > 0 ? offs[i - 1] + lens[i - 1] : o - 1; }
+  return { ids, runs, lens, offs };
+}
+
+// [offset, length] of a tile in the tile data; null when there is no such tile; undefined when
+// the archive changed under us
+async function find(env, key, a, id) {
+  let dir = a.root;
+  for (let depth = 0; depth < 4; depth++) {
+    let lo = 0, hi = dir.ids.length - 1;               // the last entry at or before id
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (dir.ids[mid] <= id) lo = mid + 1; else hi = mid - 1; }
+    const i = hi;
+    if (i < 0) return null;
+    if (dir.runs[i] > 0) return id < dir.ids[i] + dir.runs[i] ? [dir.offs[i], dir.lens[i]] : null;
+    const off = a.h.leaves + dir.offs[i];              // a run length of 0 points to a leaf directory
+    if (!a.leaves.has(off)) {
+      const obj = await env.DATA.get(key, { range: { offset: off, length: dir.lens[i] }, onlyIf: { etagMatches: a.etag } });
+      if (!obj || !("body" in obj)) return undefined;
+      a.leaves.set(off, await directory(new Uint8Array(await obj.arrayBuffer()), a.h.inner));
+      if (a.leaves.size > 256) a.leaves.delete(a.leaves.keys().next().value);
+    }
+    dir = a.leaves.get(off);
+  }
+  return null;
+}
+
+// tile id: the tiles of all lower zooms, then the tile's place along a Hilbert curve at its zoom
+function zxyToId(z, x, y) {
+  let d = 0;
+  for (let s = 2 ** (z - 1); s >= 1; s /= 2) {
+    const rx = x & s ? 1 : 0, ry = y & s ? 1 : 0;
+    d += s * s * ((3 * rx) ^ ry);
+    if (ry === 0) { if (rx === 1) { x = s - 1 - x; y = s - 1 - y; } [x, y] = [y, x]; }
+  }
+  return (4 ** z - 1) / 3 + d;
 }
 
 // ---------- PostHog relay ----------

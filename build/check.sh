@@ -51,6 +51,9 @@ PY2
 )
 [ -z "$missing" ] && ok "every L() message has Hindi" || bad "no Hindi for: $missing"
 
+# the UI stays on its design system: type and corner scales, theme colours, shared controls
+python3 build/ui_check.py && ok "UI uses the shared scales, colours and controls" || bad "UI consistency (build/ui_check.py, listed above)"
+
 # build scripts compile
 python3 -m py_compile build/*.py data/*.py && ok "python scripts compile" || bad "python scripts don't compile"
 
