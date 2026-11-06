@@ -223,7 +223,8 @@ async function apiAnswer(env, url) {
 }
 
 // ---------- map tiles ----------
-// /tiles/<state>/<z>/<x>/<y>.pbf, read from tiles/<state>.pmtiles in R2 (build/make_tiles.py).
+// /tiles/<format>/<state>/<z>/<x>/<y>.pbf, read from tiles/<format>/<state>.pmtiles in R2
+// (build/make_tiles.py; the format folder is v2 and up, and none means the first, zoom-14 format).
 // The browser asks for plain tiles, so each one is cached at the edge on its own and the page
 // needs no PMTiles code. An archive is a header, a directory of tile ids (Hilbert order, zoom
 // by zoom) and the tiles; the header and directories are kept per isolate, the tiles in the
@@ -235,7 +236,7 @@ const archives = new Map();                          // key -> {etag, h (header 
 async function tile(request, env, ctx, url) {
   if (request.method !== "GET" && request.method !== "HEAD")
     return new Response("Method not allowed", { status: 405, headers: { allow: "GET, HEAD" } });
-  const m = url.pathname.match(/^\/tiles\/([a-z-]+)\/(\d+)\/(\d+)\/(\d+)\.pbf$/);
+  const m = url.pathname.match(/^\/tiles\/((?:v\d+\/)?[a-z-]+)\/(\d+)\/(\d+)\/(\d+)\.pbf$/);
   if (!m) return new Response("Not found", { status: 404 });
   const hit = await caches.default.match(request);
   if (hit) return hit;
