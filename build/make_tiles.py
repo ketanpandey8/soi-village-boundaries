@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vector tiles for one state (prototype for the ?map=gl renderer): dist/data/tiles/<slug>.pmtiles,
+"""Vector tiles for one state (the map the app draws states with): dist/data/tiles/<slug>.pmtiles,
 uploaded to R2 by ./sync-r2.sh and served tile by tile by the Worker (/tiles/<slug>/<z>/<x>/<y>.pbf)
 
 Reads the state's zip from data/raw (every source vertex, as in the full-detail district
