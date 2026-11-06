@@ -283,7 +283,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
     touch-action:none;cursor:grab;background:var(--map-sea);transform-origin:0 0;will-change:transform}
   svg#map.grabbing{cursor:grabbing}
   #land{fill:var(--map-bg)}
-  /* ?map=gl prototype: MapLibre draws the state from vector tiles in place of the SVG map */
+  /* MapLibre draws a state from vector tiles in place of the SVG map */
   #gl{position:absolute;inset:0;display:none;z-index:1;background:var(--map-bg)}
   #app.gl #gl{display:block}
   #app.gl svg#map,#app.gl #labels,#app.gl #scalebar{display:none}
@@ -497,7 +497,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
       <label><input type="radio" name="theme" value="dark"><span data-l>Dark</span></label>
     </div>
   </div>
-  <div class="grp">
+  <div class="grp" id="qualityGrp">
     <p class="gl" id="qualityLbl" data-l>Boundary detail</p>
     <div class="seg" role="radiogroup" aria-labelledby="qualityLbl">
       <label><input type="radio" name="quality" value="auto"><span data-l>Auto</span></label>
@@ -821,17 +821,26 @@ if (location.hostname === "indianvillage.4080studio.com") {
   window.addEventListener("popstate",route);
   window.addEventListener("hashchange",route);
 
-  // ---------- ?map=gl prototype: vector tiles drawn by MapLibre GL (build/make_tiles.py) ----------
+  // ---------- states on vector tiles, drawn by MapLibre GL (build/make_tiles.py) ----------
   // A state draws from its vector tiles (/tiles/<slug>/z/x/y.pbf, out of the archive
   // build/make_tiles.py writes): only the tiles in view load, each at the detail its zoom needs,
-  // up to every surveyed point. The sheet, search and card read data/tiles/<slug>.attrs.json, the
-  // villages without their shapes, instead of .packed.json. ?map=gl turns this on for the
-  // device, ?map=svg turns it off. A state without tiles yet draws as before.
+  // up to every surveyed point, and zooming stays smooth where the SVG map has to repaint every
+  // point. The sheet, search and card read data/tiles/<slug>.attrs.json, the villages without
+  // their shapes, instead of .packed.json. The SVG map is the fallback: embeds, no WebGL, offline
+  // (tiles aren't kept on the device), a state without tiles, or ?map=svg (kept for the device;
+  // ?map=gl undoes it).
   const GL=(()=>{try{const q=new URLSearchParams(location.search).get("map");
-    if(q==="gl"||q==="svg")localStorage.setItem("map",q);return localStorage.getItem("map")==="gl";}catch(_){return false;}})();
-  const useGL=()=>GL&&!EMBED;
+      if(q==="svg")localStorage.setItem("map","svg");else if(q==="gl")localStorage.removeItem("map");
+      if(localStorage.getItem("map")==="svg")return false;}catch(_){}
+    try{const c=document.createElement("canvas"),x=c.getContext("webgl2")||c.getContext("webgl");
+      if(x){const l=x.getExtension("WEBGL_lose_context");if(l)l.loseContext();}return !!x;}catch(_){return false;}})();
+  const useGL=()=>GL&&!EMBED&&navigator.onLine!==false;
+  if(GL&&!EMBED)$("qualityGrp").hidden=true;              // detail levels are the SVG map's; tiles are always full detail
   let gl=null, glSlug=null, glMeta=null, glLib=null, glOpening=null, glReady=false;   // glReady: the style's layers exist
   const GL_LIB=ROOT+"lib/maplibre-gl-4.7.1/maplibre-gl";       // MapLibre GL, hosted here (dist/lib)
+  // tile addresses: "b" since tiles came out of the edge cache gzipped twice (fixed in the Worker),
+  // so neither the edge nor browsers reuse those broken copies, which were cached for a year
+  const TILES_V=DATA_V+"b";
   function loadGLLib(){return glLib||(glLib=new Promise((res,rej)=>{
     const css=document.createElement("link");css.rel="stylesheet";css.href=GL_LIB+".css";document.head.appendChild(css);
     const sc=document.createElement("script");sc.src=GL_LIB+".js";sc.onload=res;
@@ -847,7 +856,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
   function glStyle(slug){const c=glColours(),font=["noto-sans-medium"],v={source:"v"},vil={...v,"source-layer":"villages",minzoom:9};
     return {version:8,glyphs:location.origin+ROOT+"lib/glyphs/{fontstack}/{range}.pbf",
       // tiles come one by one from the Worker, which reads them out of the state's archive in R2
-      sources:{v:{type:"vector",tiles:[`${location.origin}${ROOT}tiles/${slug}/{z}/{x}/{y}.pbf?v=${DATA_V}`],
+      sources:{v:{type:"vector",tiles:[`${location.origin}${ROOT}tiles/${slug}/{z}/{x}/{y}.pbf?v=${TILES_V}`],
         minzoom:5,maxzoom:14,bounds:glMeta.bbox},
         india:{type:"geojson",data:{type:"FeatureCollection",features:INDIA.map((f,i)=>({type:"Feature",id:i,properties:{},geometry:f.geometry}))}}},
       layers:[
@@ -895,7 +904,8 @@ if (location.hostname === "indianvillage.4080studio.com") {
       const st=gl.queryRenderedFeatures(e.point,{layers:["ctxfill"]})[0];
       if(st&&INDIA[st.id].properties.slug!==curSlug){enterState(INDIA[st.id].properties.slug);return;}
       if(gl.getZoom()<9)gl.easeTo({center:e.lngLat,zoom:Math.max(10,gl.getZoom()+2)});});      // zoomed out: tap goes in
-    gl.on("mousemove",e=>{const f=at(e),oe=e.originalEvent;
+    const canHover=matchMedia("(hover:hover)");           // touch screens send a mousemove after each tap
+    gl.on("mousemove",e=>{if(!canHover.matches)return;const f=at(e),oe=e.originalEvent;
       gl.getCanvas().style.cursor=f?"pointer":"";
       if(!f||!feats.length||curSlug!==slug){glHover(-1);hideTip();return;}
       if(f.id!==hoverI){hoverI=f.id;glHover(f.id);showTip(villageTip(f.id),oe.clientX,oe.clientY);}else showTip(null,oe.clientX,oe.clientY);});

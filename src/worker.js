@@ -250,9 +250,10 @@ async function tile(request, env, ctx, url) {
     if (at === undefined) { archives.delete(key); continue; }
     const obj = await env.DATA.get(key, { range: { offset: a.h.tileData + at[0], length: at[1] }, onlyIf: { etagMatches: a.etag } });
     if (!obj || !("body" in obj)) { archives.delete(key); continue; }
-    // tippecanoe gzips each tile: pass it through as it is, and the browser unpacks it
-    res = new Response(obj.body, { headers: a.h.gzip ? { ...TILE_HEADERS, "content-encoding": "gzip" } : TILE_HEADERS,
-      encodeBody: a.h.gzip ? "manual" : "automatic" });
+    // tippecanoe gzips each tile. Unpack it here and let Cloudflare compress it on the way out:
+    // a gzipped body passed through as it is gets gzipped a second time once it comes back
+    // out of the edge cache, and the map can't read it
+    res = new Response(a.h.gzip ? obj.body.pipeThrough(new DecompressionStream("gzip")) : obj.body, { headers: TILE_HEADERS });
   }
   if (!res) return new Response("Tiles changed while reading. Try again.", { status: 503 });
   if (request.method === "GET") ctx.waitUntil(caches.default.put(request, res.clone()));

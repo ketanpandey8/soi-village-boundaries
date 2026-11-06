@@ -114,7 +114,7 @@ python3 build/pack.py           # the smaller .packed.json files the app downloa
 python3 build/make_search.py    # all-India village search index
 python3 build/make_pages.py     # bordering villages, village page data, sitemaps
 python3 build/make_lines.py     # taluk and district boundary lines
-python3 build/make_tiles.py uttar-pradesh   # vector tiles for the ?map=gl map (needs tippecanoe)
+python3 build/make_tiles.py uttar-pradesh   # vector tiles, the map states draw with (needs tippecanoe)
 python3 build/make_cards.py     # link preview images (needs Pillow), then commit dist/cards/
 python3 data/check_release.py --write   # record which SoI release this was built from
 ```
