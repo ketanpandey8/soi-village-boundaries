@@ -9,7 +9,7 @@ files) and writes one PMTiles archive with four layers, built by tippecanoe:
              (n name, d district, s taluk, l LGD, c category, a area) and ci, the district's
              palette index. The feature id is the village's index in <slug>.packed.json, so
              population, neighbours and search results line up with the existing files.
-  districts  one dissolved outline per district for zooms 5-8 (fills only), so a zoomed-out
+  districts  one dissolved outline per district for zooms 3-8 (fills only), so a zoomed-out
              view loads ~75 shapes instead of every village
   lines      district (k=d) and taluk (k=t) boundaries from <slug>.lines.json
   labels     one point per village (k=v) and per district (k=d) for map labels
@@ -42,6 +42,7 @@ PALETTE = ["#6ba368","#e0a13c","#d9663f","#3d94a6","#8a6fb0","#c0577f","#4d9670"
 RGB = [tuple(int(h[i:i+2], 16) for i in (1, 3, 5)) for h in PALETTE]
 LIVE = "https://indianvillage.4080studio.com"
 TILES_V = "v2"                       # folder for this tile format, in dist/data/tiles and R2
+MINZOOM = 3                          # as far out as the app's map goes, so zooming out never empties it
 MAXZOOM, DETAIL = 12, 14             # last zoom with its own tiles; its grid is 2**DETAIL units
 
 def colour(names, nb):
@@ -235,7 +236,7 @@ def main():
                 f.write(json.dumps({"type": "Feature", "properties": {"k": k}, "geometry": {"type": "LineString", "coordinates": pts}}) + "\n")
 
     dst = os.path.join(out, slug + ".pmtiles")
-    cmd = ["tippecanoe", "-o", dst, "--force", "-n", pretty(zf), "-Z5", f"-z{MAXZOOM}", f"--full-detail={DETAIL}",
+    cmd = ["tippecanoe", "-o", dst, "--force", "-n", pretty(zf), f"-Z{MINZOOM}", f"-z{MAXZOOM}", f"--full-detail={DETAIL}",
            "-L", json.dumps({"layer": "villages", "file": os.path.join(work, "villages.geojsonl")}),
            "-L", json.dumps({"layer": "districts", "file": os.path.join(work, "districts.geojsonl")}),
            "-L", json.dumps({"layer": "lines", "file": os.path.join(work, "lines.geojsonl")}),

@@ -875,7 +875,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
                                                        // failed font file and MapLibre draws nothing at all
       // tiles come one by one from the Worker, which reads them out of the state's archive in R2
       sources:{v:{type:"vector",tiles:[`vt://${location.host}${ROOT}tiles/${TILES_V}/${slug}/{z}/{x}/{y}.pbf?v=${DATA_V}`],
-        minzoom:5,maxzoom:glMeta.maxzoom,bounds:glMeta.bbox},
+        minzoom:3,maxzoom:glMeta.maxzoom,bounds:glMeta.bbox},   // 3: the map's minZoom, so zoomed out is never empty
         india:{type:"geojson",data:{type:"FeatureCollection",features:INDIA.map((f,i)=>({type:"Feature",id:i,properties:{},geometry:f.geometry}))}}},
       layers:[
         {id:"bg",type:"background",paint:{"background-color":c.land}},
