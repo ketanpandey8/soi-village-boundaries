@@ -838,13 +838,29 @@ if (location.hostname === "indianvillage.4080studio.com") {
   if(GL&&!EMBED)$("qualityGrp").hidden=true;              // detail levels are the SVG map's; tiles are always full detail
   let gl=null, glSlug=null, glMeta=null, glLib=null, glOpening=null, glReady=false;   // glReady: the style's layers exist
   const GL_LIB=ROOT+"lib/maplibre-gl-4.7.1/maplibre-gl";       // MapLibre GL, hosted here (dist/lib)
-  // tile addresses: "b" since tiles came out of the edge cache gzipped twice (fixed in the Worker),
-  // so neither the edge nor browsers reuse those broken copies, which were cached for a year
-  const TILES_V=DATA_V+"b";
+  // the tile format's folder (build/make_tiles.py TILES_V): tiles/v2/<slug> in R2, and in the
+  // addresses, so a new format never meets a copy of the old one cached at the edge or on a device
+  const TILES_V="v2";
   function loadGLLib(){return glLib||(glLib=new Promise((res,rej)=>{
     const css=document.createElement("link");css.rel="stylesheet";css.href=GL_LIB+".css";document.head.appendChild(css);
-    const sc=document.createElement("script");sc.src=GL_LIB+".js";sc.onload=res;
+    const sc=document.createElement("script");sc.src=GL_LIB+".js";sc.onload=()=>{maplibregl.addProtocol("vt",loadTile);res();};
     sc.onerror=()=>{glLib=null;sc.remove();rej(new Error("no map library"));};document.head.appendChild(sc);}));}
+  // Tiles and label fonts load through this instead of MapLibre's own fetch, which gives up on the
+  // first error and leaves that square blank (or showing a lower zoom's tile) until the page reloads. A refused,
+  // failed or stalled request is tried again with growing waits, honouring Retry-After; leaving
+  // the area cancels it.
+  async function loadTile(p,ac){const url=location.protocol+"//"+p.url.slice(5);
+    for(let i=0;;i++){let r=null,err;
+      const ctl=new AbortController(),stop=()=>ctl.abort(),t=setTimeout(stop,12000);
+      ac.signal.addEventListener("abort",stop,{once:true});
+      try{r=await fetch(url,{signal:ctl.signal});}catch(e){err=e;}finally{clearTimeout(t);ac.signal.removeEventListener("abort",stop);}
+      if(ac.signal.aborted)throw new DOMException("Tile no longer needed","AbortError");
+      if(r&&r.status===204)return {data:new ArrayBuffer(0)};      // nothing in this square
+      if(r&&r.ok)return {data:await r.arrayBuffer()};
+      if(i>=5||(r&&r.status!==429&&r.status<500))throw err||new Error(`Tile ${r.status}: ${url}`);
+      const after=r&&parseFloat(r.headers.get("retry-after"));
+      await new Promise((ok,no)=>{const w=setTimeout(ok,Math.min(10000,after>0?after*1000:500*2**i)*(.75+Math.random()/2));
+        ac.signal.addEventListener("abort",()=>{clearTimeout(w);no(new DOMException("Tile no longer needed","AbortError"));},{once:true});});}}
   const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   // the theme's colours, read from the stylesheet so the tiles follow light and dark
   function glColours(){const fill=["match",["get","ci"]];for(let i=0;i<16;i++)fill.push(i,cssv("--p"+i));fill.push(cssv("--c-others"));
@@ -854,10 +870,11 @@ if (location.hostname === "indianvillage.4080studio.com") {
     :{top:40,bottom:40,right:70,left:sheet.getBoundingClientRect().right+30};}
   const NONE=["==",["id"],-1];
   function glStyle(slug){const c=glColours(),font=["noto-sans-medium"],v={source:"v"},vil={...v,"source-layer":"villages",minzoom:9};
-    return {version:8,glyphs:location.origin+ROOT+"lib/glyphs/{fontstack}/{range}.pbf",
+    return {version:8,glyphs:"vt://"+location.host+ROOT+"lib/glyphs/{fontstack}/{range}.pbf",   // retried like tiles: one
+                                                       // failed font file and MapLibre draws nothing at all
       // tiles come one by one from the Worker, which reads them out of the state's archive in R2
-      sources:{v:{type:"vector",tiles:[`${location.origin}${ROOT}tiles/${slug}/{z}/{x}/{y}.pbf?v=${TILES_V}`],
-        minzoom:5,maxzoom:14,bounds:glMeta.bbox},
+      sources:{v:{type:"vector",tiles:[`vt://${location.host}${ROOT}tiles/${TILES_V}/${slug}/{z}/{x}/{y}.pbf?v=${DATA_V}`],
+        minzoom:5,maxzoom:glMeta.maxzoom,bounds:glMeta.bbox},
         india:{type:"geojson",data:{type:"FeatureCollection",features:INDIA.map((f,i)=>({type:"Feature",id:i,properties:{},geometry:f.geometry}))}}},
       layers:[
         {id:"bg",type:"background",paint:{"background-color":c.land}},
@@ -890,7 +907,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
   new MutationObserver(glRepaint).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change",glRepaint);
   function glOpen(slug){return glOpening=(async()=>{
-    if(!glMeta||glMeta.slug!==slug){glMeta=await fetch(`${ROOT}data/tiles/${slug}.json?v=${DATA_V}`).then(r=>{if(!r.ok)throw new Error("no tiles");return r.json();});glMeta.slug=slug;}
+    if(!glMeta||glMeta.slug!==slug){glMeta=await fetch(`${ROOT}data/tiles/${TILES_V}/${slug}.json?v=${DATA_V}`).then(r=>{if(!r.ok)throw new Error("no tiles");return r.json();});glMeta.slug=slug;}
     await loadGLLib();
     if(gl&&glSlug===slug)return;
     glClose();glSlug=slug;$("app").classList.add("gl");
@@ -924,8 +941,10 @@ if (location.hostname === "indianvillage.4080studio.com") {
   async function glFindAt(lon,lat){const m=gl;
     m.jumpTo({center:[lon,lat],zoom:Math.max(m.getZoom(),13)});await new Promise(r=>m.once("idle",r));
     const f=gl===m&&m.queryRenderedFeatures(m.project([lon,lat]),{layers:["vfill"]})[0];return f?f.id:-1;}
+  // before the map's first draw (a village link) it jumps there: animating in from the whole state
+  // would fetch tiles for every zoom on the way
   function glZoomTo(i){
-    gl.fitBounds(fbox(feats[i]),{padding:glPad(phone()?detentPx(detent):0),maxZoom:14.5,duration:600});}
+    gl.fitBounds(fbox(feats[i]),{padding:glPad(phone()?detentPx(detent):0),maxZoom:14.5,duration:glReady?600:0});}
 
   // ---------- overview ----------
   function drawOverview(push){

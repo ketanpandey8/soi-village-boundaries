@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Vector tiles for one state (the map the app draws states with): dist/data/tiles/<slug>.pmtiles,
-uploaded to R2 by ./sync-r2.sh and served tile by tile by the Worker (/tiles/<slug>/<z>/<x>/<y>.pbf)
+"""Vector tiles for one state (the map the app draws states with): dist/data/tiles/v2/<slug>.pmtiles,
+uploaded to R2 by ./sync-r2.sh and served tile by tile by the Worker (/tiles/v2/<slug>/<z>/<x>/<y>.pbf)
 
 Reads the state's zip from data/raw (every source vertex, as in the full-detail district
 files) and writes one PMTiles archive with four layers, built by tippecanoe:
@@ -19,12 +19,17 @@ picking the most different colour), so the tiles look like the current map.
 
   python3 build/make_tiles.py uttar-pradesh [path/to/data/raw] [--meta-only]
 
-Also writes dist/data/tiles/<slug>.json: {"ci": {district: palette index}, "bbox": [w, s, e, n]},
-which the app reads before the tiles so its district list matches the map's colours, and
+Tiles stop at zoom 12 but keep zoom-14 precision (a 16384-unit grid, about half a metre), and
+the map scales them up past that: a close-up needs 4-16x fewer tiles than with zoom-14 tiles, for
+the same boundaries. A new tile format goes in a new folder (v2, v3...) beside the old one, so the
+live app keeps reading the old files until the code that reads the new ones is deployed.
+
+Also writes dist/data/tiles/v2/<slug>.json: {"ci": {district: palette index}, "bbox": [w, s, e, n],
+"maxzoom": 12}, which the app reads before the tiles so its district list matches the map's colours, and
 dist/data/tiles/<slug>.attrs.json, the village list without shapes (see attrs()).
 Needs tippecanoe (brew install tippecanoe) and dist/data/<slug>.lines.json, or fetches it.
 """
-import os, re, sys, json, math, zipfile, tempfile, subprocess, urllib.request
+import os, re, sys, json, math, shutil, zipfile, tempfile, subprocess, urllib.request
 from collections import defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -36,6 +41,8 @@ PALETTE = ["#6ba368","#e0a13c","#d9663f","#3d94a6","#8a6fb0","#c0577f","#4d9670"
            "#c99a3c","#5b8def","#d17c4a","#57a99a","#b0563f","#7aa03f","#9a6ac0","#3f9fb0","#c77d9e"]
 RGB = [tuple(int(h[i:i+2], 16) for i in (1, 3, 5)) for h in PALETTE]
 LIVE = "https://indianvillage.4080studio.com"
+TILES_V = "v2"                       # folder for this tile format, in dist/data/tiles and R2
+MAXZOOM, DETAIL = 12, 14             # last zoom with its own tiles; its grid is 2**DETAIL units
 
 def colour(names, nb):
     """DSATUR, as colourDistricts() in the app: most-constrained first, the palette colour
@@ -153,7 +160,7 @@ def main():
     slug, meta_only = args[0], "--meta-only" in sys.argv
     raw = args[1] if len(args) > 1 else os.path.join(ROOT, "data", "raw")
     zf = next(f for f in os.listdir(raw) if f.lower().endswith(".zip") and slugify(pretty(f)) == slug)
-    out = os.path.join(ROOT, "dist", "data", "tiles"); os.makedirs(out, exist_ok=True)
+    out = os.path.join(ROOT, "dist", "data", "tiles", TILES_V); os.makedirs(out, exist_ok=True)
     work = tempfile.mkdtemp(prefix="tiles-")
     with tempfile.TemporaryDirectory() as td:
         with zipfile.ZipFile(os.path.join(raw, zf)) as z: z.extractall(td)
@@ -186,9 +193,9 @@ def main():
     ix = {n: i for i, n in enumerate(names)}
     ci = colour(names, [{ix[w] for w in nb[n]} for n in names])
     xs = [p[0] for _, rings in feats for r in rings for p in r[::25]]; ys = [p[1] for _, rings in feats for r in rings for p in r[::25]]
-    json.dump({"ci": ci, "bbox": [min(xs), min(ys), max(xs), max(ys)]}, open(os.path.join(out, slug + ".json"), "w"), separators=(",", ":"))
+    json.dump({"ci": ci, "bbox": [min(xs), min(ys), max(xs), max(ys)], "maxzoom": MAXZOOM}, open(os.path.join(out, slug + ".json"), "w"), separators=(",", ":"))
     attrs(slug, len(feats))
-    if meta_only: return
+    if meta_only: shutil.rmtree(work, ignore_errors=True); return
 
     vil, lab, dst_f = (open(os.path.join(work, n), "w") for n in ("villages.geojsonl", "labels.geojsonl", "districts.geojsonl"))
     dsum = defaultdict(lambda: [0, 0, 0])
@@ -228,7 +235,7 @@ def main():
                 f.write(json.dumps({"type": "Feature", "properties": {"k": k}, "geometry": {"type": "LineString", "coordinates": pts}}) + "\n")
 
     dst = os.path.join(out, slug + ".pmtiles")
-    cmd = ["tippecanoe", "-o", dst, "--force", "-n", pretty(zf), "-Z5", "-z14",
+    cmd = ["tippecanoe", "-o", dst, "--force", "-n", pretty(zf), "-Z5", f"-z{MAXZOOM}", f"--full-detail={DETAIL}",
            "-L", json.dumps({"layer": "villages", "file": os.path.join(work, "villages.geojsonl")}),
            "-L", json.dumps({"layer": "districts", "file": os.path.join(work, "districts.geojsonl")}),
            "-L", json.dumps({"layer": "lines", "file": os.path.join(work, "lines.geojsonl")}),
@@ -242,7 +249,8 @@ def main():
            "--no-feature-limit", "--no-tile-size-limit",
            # keep every label point at every zoom (the style decides which show), and no progress spam
            "-r1", "--quiet"]
-    subprocess.run(cmd, check=True)
+    try: subprocess.run(cmd, check=True)
+    finally: shutil.rmtree(work, ignore_errors=True)
     print(f"-> {dst}  {os.path.getsize(dst) / 1048576:.1f} MB")
 
 if __name__ == "__main__":
