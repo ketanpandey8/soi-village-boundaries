@@ -242,20 +242,26 @@ async function tile(request, env, ctx, url) {
   const [z, x, y] = m.slice(2).map(Number), key = `tiles/${m[1]}.pmtiles`;
   if (z > 30 || x >= 2 ** z || y >= 2 ** z) return new Response("Not found", { status: 404 });
   let res;
-  for (let tries = 0; !res && tries < 2; tries++) {   // twice: the archive may have been replaced since it was read
-    const a = await archive(env, key);
-    if (!a) return new Response("Not found", { status: 404 });
-    const at = await find(env, key, a, zxyToId(z, x, y));
-    if (at === null) { res = new Response(null, { status: 204, headers: TILE_HEADERS }); break; }   // no tile: nothing there
-    if (at === undefined) { archives.delete(key); continue; }
-    const obj = await env.DATA.get(key, { range: { offset: a.h.tileData + at[0], length: at[1] }, onlyIf: { etagMatches: a.etag } });
-    if (!obj || !("body" in obj)) { archives.delete(key); continue; }
-    // tippecanoe gzips each tile. Unpack it here and let Cloudflare compress it on the way out:
-    // a gzipped body passed through as it is gets gzipped a second time once it comes back
-    // out of the edge cache, and the map can't read it
-    res = new Response(a.h.gzip ? obj.body.pipeThrough(new DecompressionStream("gzip")) : obj.body, { headers: TILE_HEADERS });
+  try {
+    for (let tries = 0; !res && tries < 2; tries++) {   // twice: the archive may have been replaced since it was read
+      const a = await archive(env, key);
+      if (!a) return new Response("Not found", { status: 404 });
+      const at = await find(env, key, a, zxyToId(z, x, y));
+      if (at === null) { res = new Response(null, { status: 204, headers: TILE_HEADERS }); break; }   // no tile: nothing there
+      if (at === undefined) { archives.delete(key); continue; }
+      const t = await r2bytes(env, key, { range: { offset: a.h.tileData + at[0], length: at[1] }, onlyIf: { etagMatches: a.etag } });
+      if (!t || t === CHANGED) { archives.delete(key); continue; }
+      // tippecanoe gzips each tile. Unpack it here and let Cloudflare compress it on the way out:
+      // a gzipped body passed through as it is gets gzipped a second time once it comes back
+      // out of the edge cache, and the map can't read it. Whole bytes, not a stream: a stream
+      // piped through the unpacker and copied into the cache now and then never finished.
+      res = new Response(a.h.gzip ? await gunzip(t.bytes) : t.bytes, { headers: TILE_HEADERS });
+    }
+  } catch (e) {
+    console.log("tile failed", url.pathname, String(e));
+    return new Response("Couldn't read the tile. Try again.", { status: 503, headers: { "retry-after": "1", "cache-control": "no-store" } });
   }
-  if (!res) return new Response("Tiles changed while reading. Try again.", { status: 503 });
+  if (!res) return new Response("Tiles changed while reading. Try again.", { status: 503, headers: { "cache-control": "no-store" } });
   if (request.method === "GET") ctx.waitUntil(caches.default.put(request, res.clone()));
   return request.method === "HEAD" ? new Response(null, res) : res;
 }
@@ -264,25 +270,26 @@ async function tile(request, env, ctx, url) {
 async function archive(env, key) {
   if (!archives.has(key)) {
     archives.set(key, (async () => {
-      const obj = await env.DATA.get(key, { range: { offset: 0, length: 16384 } });
-      if (!obj) return null;
-      const b = new Uint8Array(await obj.arrayBuffer()), v = new DataView(b.buffer);
+      const head = await r2bytes(env, key, { range: { offset: 0, length: 16384 } });
+      if (!head || head === CHANGED) return null;
+      const b = head.bytes, v = new DataView(b.buffer, b.byteOffset, b.byteLength);
       if (new TextDecoder().decode(b.subarray(0, 7)) !== "PMTiles" || b[7] !== 3) return null;
       const u64 = o => v.getUint32(o, true) + v.getUint32(o + 4, true) * 2 ** 32;
       const h = { root: u64(8), rootLen: u64(16), leaves: u64(40), tileData: u64(56), inner: b[97], gzip: b[98] === 2 };
-      return { etag: obj.etag, h, root: await directory(b.subarray(h.root, h.root + h.rootLen), h.inner), leaves: new Map() };
-    })().catch(() => null));
+      return { etag: head.etag, h, root: await directory(b.subarray(h.root, h.root + h.rootLen), h.inner), leaves: new Map() };
+    })());
   }
-  const a = await archives.get(key);
-  if (!a) archives.delete(key);
+  let a;
+  try { a = await archives.get(key); }
+  catch (e) { archives.delete(key); throw e; }           // a failed read: the next request tries again
+  if (!a) archives.delete(key);                         // no such state, or not a tile archive
   return a;
 }
 
 // a directory: entry count, then tile ids (as differences), run lengths, lengths and offsets,
 // each a column of varints (an offset of 0 means "right after the previous tile")
 async function directory(bytes, compression) {
-  if (compression === 2) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream()
-    .pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  if (compression === 2) bytes = await gunzip(bytes);
   else if (compression !== 1) throw new Error("unsupported directory compression");
   let p = 0;
   const vint = () => { let n = 0, f = 1, c; do { c = bytes[p++]; n += (c & 127) * f; f *= 128; } while (c & 128); return n; };
@@ -306,15 +313,33 @@ async function find(env, key, a, id) {
     if (dir.runs[i] > 0) return id < dir.ids[i] + dir.runs[i] ? [dir.offs[i], dir.lens[i]] : null;
     const off = a.h.leaves + dir.offs[i];              // a run length of 0 points to a leaf directory
     if (!a.leaves.has(off)) {
-      const obj = await env.DATA.get(key, { range: { offset: off, length: dir.lens[i] }, onlyIf: { etagMatches: a.etag } });
-      if (!obj || !("body" in obj)) return undefined;
-      a.leaves.set(off, await directory(new Uint8Array(await obj.arrayBuffer()), a.h.inner));
+      const leaf = await r2bytes(env, key, { range: { offset: off, length: dir.lens[i] }, onlyIf: { etagMatches: a.etag } });
+      if (!leaf || leaf === CHANGED) return undefined;
+      a.leaves.set(off, await directory(leaf.bytes, a.h.inner));
       if (a.leaves.size > 256) a.leaves.delete(a.leaves.keys().next().value);
     }
     dir = a.leaves.get(off);
   }
   return null;
 }
+
+// a byte range of an R2 object, read whole: {etag, bytes}, null if there's no such object, or
+// CHANGED if it no longer has the etag asked for. Gives up after 8 s, so a stuck read becomes an
+// error the map can retry instead of a request that never ends.
+const CHANGED = Symbol("changed");
+async function r2bytes(env, key, opts) {
+  let timer;
+  const read = (async () => {
+    const obj = await env.DATA.get(key, opts);
+    if (!obj) return null;
+    if (!("body" in obj)) return CHANGED;
+    return { etag: obj.etag, bytes: new Uint8Array(await obj.arrayBuffer()) };
+  })();
+  const late = new Promise((_, no) => { timer = setTimeout(() => no(new Error("R2 read timed out")), 8000); });
+  try { return await Promise.race([read, late]); } finally { clearTimeout(timer); }
+}
+const gunzip = async bytes => new Uint8Array(await new Response(new Blob([bytes]).stream()
+  .pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
 
 // tile id: the tiles of all lower zooms, then the tile's place along a Hilbert curve at its zoom
 function zxyToId(z, x, y) {
