@@ -84,13 +84,17 @@ export default {
 };
 
 // ---------- link previews ----------
-const memo = new Map();                              // per isolate: small JSON from R2
+// Per isolate: small JSON from R2. Only finished values are kept, never a pending promise: a
+// request can't wait on a promise another request started (it hangs until it's cancelled).
+const memo = new Map();
 async function r2json(env, key) {
-  if (!memo.has(key)) {
-    memo.set(key, env.DATA.get(key).then(o => (o ? o.json() : null)).catch(() => null));
+  if (memo.has(key)) return memo.get(key);
+  const v = await env.DATA.get(key).then(o => (o ? o.json() : null)).catch(() => null);
+  if (v !== null) {
+    memo.set(key, v);
     if (memo.size > 40) memo.delete(memo.keys().next().value);
   }
-  return memo.get(key);
+  return v;
 }
 const cap = s => String(s || "").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -231,7 +235,8 @@ async function apiAnswer(env, url) {
 // edge cache. https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md
 const TILE_HEADERS = { "content-type": "application/vnd.mapbox-vector-tile", "access-control-allow-origin": "*",
   "cache-control": "public, max-age=31536000, immutable" };
-const archives = new Map();                          // key -> {etag, h (header numbers), root, leaves}
+const archives = new Map();                          // key -> {etag, h (header numbers), root, leaves, at}, once read
+const ARCHIVE_TTL = 60000;   // re-read a header this often: a tile the old copy lacks reads as empty, never as "changed"
 
 async function tile(request, env, ctx, url) {
   if (request.method !== "GET" && request.method !== "HEAD")
@@ -248,7 +253,8 @@ async function tile(request, env, ctx, url) {
       const a = await archive(env, key);
       if (!a) return new Response("Not found", { status: 404 });
       const at = await find(env, key, a, zxyToId(z, x, y));
-      if (at === null) { res = new Response(null, { status: 204, headers: TILE_HEADERS }); break; }   // no tile: nothing there
+      if (at === null) {                                  // no tile: nothing there. Kept an hour, not a year,
+        res = new Response(null, { status: 204, headers: { ...TILE_HEADERS, "cache-control": "public, max-age=3600" } }); break; }   // in case the archive grows
       if (at === undefined) { archives.delete(key); continue; }
       const t = await r2bytes(env, key, { range: { offset: a.h.tileData + at[0], length: at[1] }, onlyIf: { etagMatches: a.etag } });
       if (!t || t === CHANGED) { archives.delete(key); continue; }
@@ -268,22 +274,19 @@ async function tile(request, env, ctx, url) {
 }
 
 // the header and root directory, from the first 16 KB (the spec keeps the root directory there)
+// Kept once read. Requests that arrive while it's being read each read it themselves: they can't
+// share the first one's pending promise (on Workers that hangs until the request is cancelled).
 async function archive(env, key) {
-  if (!archives.has(key)) {
-    archives.set(key, (async () => {
-      const head = await r2bytes(env, key, { range: { offset: 0, length: 16384 } });
-      if (!head || head === CHANGED) return null;
-      const b = head.bytes, v = new DataView(b.buffer, b.byteOffset, b.byteLength);
-      if (new TextDecoder().decode(b.subarray(0, 7)) !== "PMTiles" || b[7] !== 3) return null;
-      const u64 = o => v.getUint32(o, true) + v.getUint32(o + 4, true) * 2 ** 32;
-      const h = { root: u64(8), rootLen: u64(16), leaves: u64(40), tileData: u64(56), inner: b[97], gzip: b[98] === 2 };
-      return { etag: head.etag, h, root: await directory(b.subarray(h.root, h.root + h.rootLen), h.inner), leaves: new Map() };
-    })());
-  }
-  let a;
-  try { a = await archives.get(key); }
-  catch (e) { archives.delete(key); throw e; }           // a failed read: the next request tries again
-  if (!a) archives.delete(key);                         // no such state, or not a tile archive
+  const have = archives.get(key);
+  if (have && Date.now() - have.at < ARCHIVE_TTL) return have;
+  const head = await r2bytes(env, key, { range: { offset: 0, length: 16384 } });
+  if (!head || head === CHANGED) return null;           // no such state (a read error throws)
+  const b = head.bytes, v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  if (new TextDecoder().decode(b.subarray(0, 7)) !== "PMTiles" || b[7] !== 3) return null;
+  const u64 = o => v.getUint32(o, true) + v.getUint32(o + 4, true) * 2 ** 32;
+  const h = { root: u64(8), rootLen: u64(16), leaves: u64(40), tileData: u64(56), inner: b[97], gzip: b[98] === 2 };
+  const a = { etag: head.etag, h, root: await directory(b.subarray(h.root, h.root + h.rootLen), h.inner), leaves: new Map(), at: Date.now() };
+  archives.set(key, a);
   return a;
 }
 
