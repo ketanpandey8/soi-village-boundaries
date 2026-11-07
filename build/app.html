@@ -841,7 +841,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
   const GL_LIB=ROOT+"lib/maplibre-gl-4.7.1/maplibre-gl";       // MapLibre GL, hosted here (dist/lib)
   // the tile format's folder (build/make_tiles.py TILES_V): tiles/v2/<slug> in R2, and in the
   // addresses, so a new format never meets a copy of the old one cached at the edge or on a device
-  const TILES_V="v2";
+  const TILES_V="v2", TILES_REV="b";   // REV: bump after re-uploading archives in place (b: tiles from zoom 3)
   function loadGLLib(){return glLib||(glLib=new Promise((res,rej)=>{
     const css=document.createElement("link");css.rel="stylesheet";css.href=GL_LIB+".css";document.head.appendChild(css);
     const sc=document.createElement("script");sc.src=GL_LIB+".js";sc.onload=()=>{maplibregl.addProtocol("vt",loadTile);res();};
@@ -874,7 +874,7 @@ if (location.hostname === "indianvillage.4080studio.com") {
     return {version:8,glyphs:"vt://"+location.host+ROOT+"lib/glyphs/{fontstack}/{range}.pbf",   // retried like tiles: one
                                                        // failed font file and MapLibre draws nothing at all
       // tiles come one by one from the Worker, which reads them out of the state's archive in R2
-      sources:{v:{type:"vector",tiles:[`vt://${location.host}${ROOT}tiles/${TILES_V}/${slug}/{z}/{x}/{y}.pbf?v=${DATA_V}`],
+      sources:{v:{type:"vector",tiles:[`vt://${location.host}${ROOT}tiles/${TILES_V}/${slug}/{z}/{x}/{y}.pbf?v=${DATA_V}${TILES_REV}`],
         minzoom:3,maxzoom:glMeta.maxzoom,bounds:glMeta.bbox},   // 3: the map's minZoom, so zoomed out is never empty
         india:{type:"geojson",data:{type:"FeatureCollection",features:INDIA.map((f,i)=>({type:"Feature",id:i,properties:{},geometry:f.geometry}))}}},
       layers:[
